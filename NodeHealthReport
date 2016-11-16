@@ -1,0 +1,652 @@
+Sub CompareCensusSheets()
+    'If there are no workbooks open, exit the sub
+    If Application.Workbooks.Count <> 2 Then
+        MsgBox "For the sake of accuracy, please open the two census sheets to be compared.", vbExclamation
+        Exit Sub
+    End If
+    
+'    'Turn off Excel functionality to improve performance.
+'    Application.ScreenUpdating = False
+'    Application.DisplayStatusBar = False
+'    Application.Calculation = xlCalculationManual
+'    Application.EnableEvents = False
+'    'Note: this is a sheet-level setting.
+'    ActiveSheet.DisplayPageBreaks = False
+    
+    start_time = Now
+    
+    'Immediately get names
+    firstWorkbook = Application.ActiveWorkbook.Name
+    ActiveWindow.ActivateNext
+    secondWorkbook = Application.ActiveWorkbook.Name
+    Windows.Arrange ArrangeStyle:=xlTiled
+    
+    'DNU - Grabs the date from the workbooks...
+    'firstWDate = Left(Right(firstWorkbook, 13), 8)
+    'secondWDate = Left(Right(secondWorkbook, 13), 8)
+    
+    'Modified date grab from the workbook's filename
+    'We will assume the begining file name will always be "Interim_Node_Append_Update_" so = len("Interim_Node_Append_Update_")
+    If Left(firstWorkbook, Len("Interim_Node_Append_Update_")) <> "Interim_Node_Append_Update_" Or Left(secondWorkbook, Len("Interim_Node_Append_Update_")) <> "Interim_Node_Append_Update_" Then
+        MsgBox "The filename for one of these workbooks does not start off as 'Interim_Node_Append_Update_'. Please check the workbook name for standard naming and try again.", vbExclamation
+        Exit Sub
+    End If
+    
+    firstWDate = Left(Right(firstWorkbook, Len(firstWorkbook) - Len("Interim_Node_Append_Update_")), 8)
+    secondWDate = Left(Right(secondWorkbook, Len(secondWorkbook) - Len("Interim_Node_Append_Update_")), 8)
+
+    
+    'Separates Month Date and Year then format's it to YYYYMMDD to do next step
+    firstWDate = Right(firstWDate, 4) & Left(firstWDate, 2) & Right(Left(firstWDate, 4), 2)
+    secondWDate = Right(secondWDate, 4) & Left(secondWDate, 2) & Right(Left(secondWDate, 4), 2)
+    
+    'This is the step we check which workbook is newest
+    If firstWDate > secondWDate Then
+        'MsgBox firstWorkbook & " is the more recent"
+    ElseIf firstWDate < secondWDate Then
+        temp = secondWorkbook
+        secondWorkbook = firstWorkbook
+        firstWorkbook = temp
+        
+        temp = secondWDate
+        secondWDate = firstWDate
+        firstWDate = temp
+    End If
+    
+    If firstWDate > Format(Now, "YYYYMMDD") Or secondWDate > Format(Now, "YYYYMMDD") Then
+        MsgBox "There may be a date issue on the file name", vbExclamation, "Please check workbook name..."
+        Exit Sub
+    End If
+    
+    Set w1 = Workbooks(firstWorkbook).Worksheets(1)
+    Set w2 = Workbooks(secondWorkbook).Worksheets(1)
+    
+    w1LastRow = w1.UsedRange.Rows.Count
+    w2LastRow = w2.UsedRange.Rows.Count
+    
+    Dim compareFromRange() As Variant
+    Dim compareWithRange() As Variant
+    
+    'Sort column B from a to z, 0 to 9 for amazing speed!
+    w1.Sort.SortFields.Add Key:=Range("B2"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With w1.Sort
+        .SetRange Range("A2:D" & w1LastRow)
+        .Header = xlNo
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    w2.Sort.SortFields.Add Key:=Range("B2"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With w2.Sort
+        .SetRange Range("A2:D" & w2LastRow)
+        .Header = xlNo
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    compareFromRange = w1.Range("A1:D" & w1LastRow).Value
+    compareWithRange = w2.Range("A1:D" & w2LastRow).Value
+    
+    For j = 2 To w1LastRow
+        For y = 2 To w2LastRow
+            If compareFromRange(j, 2) = compareWithRange(y, 2) Then
+                If compareFromRange(j, 1) & compareFromRange(j, 3) & compareFromRange(j, 4) = compareWithRange(y, 1) & compareWithRange(y, 3) & compareWithRange(y, 4) Then
+                    w1.Cells(j, 5) = 1
+                End If
+            ElseIf compareFromRange(j, 2) < compareWithRange(y, 2) Then
+                Exit For
+            End If
+        Next y
+    Next j
+    
+'    Dim delRow As Long, delCount As Long
+'    For delRow = 2 To w1LastRow
+'        If w1.Cells(delRow, 5) = 1 Then
+'            delCount = delCount + 1
+'            w1.Range(delRow & ":" & delRow).Delete xlUp
+'            delRow = delRow - 1
+'        End If
+'    Next delRow
+    
+    'Modify this algorithm to sort by account number and look at acct # values FIRST
+    
+    'Rows("12:12").Delete Shift:=xlUp
+    'ThisWorkbook.Sheets("SheetX").Range("3:31").Delete xlUp
+    'Range("A22:D22").Interior.Color = 255
+    
+    Erase compareFromRange, compareWithRange 'Erase the array
+    
+'    'Restore Excel settings to original state.
+'    Application.ScreenUpdating = screenUpdateState
+'    Application.DisplayStatusBar = statusBarState
+'    Application.Calculation = calcState
+'    Application.EnableEvents = eventsState
+'    'Note: this is a sheet-level setting
+'    ActiveSheet.DisplayPageBreaks = displayPageBreaksState
+
+    End_time = Now
+    
+    MsgBox "Report comparison completed in: " & Format(End_time - start_time, "hh:mm:ss") & vbNewLine & delCount & " duplicate compared entries have been deleted."
+    Exit Sub
+End Sub
+Sub CabledataNodeHealthReport()
+    'If there are no workbooks open, exit the sub
+    If Application.Workbooks.Count < 1 Then
+        MsgBox "Please open a Node Health Report sheet first", vbExclamation, "Careful..."
+        Exit Sub
+    End If
+    
+    'Delete the other two unnecessary tabs 'Design Review' and 'Duplicate Mac Addresses'
+    For sht = Worksheets.Count To 1 Step -1
+        If UCase(Trim(Worksheets(sht).Name)) = "DESIGN REVIEW" Or UCase(Trim(Worksheets(sht).Name)) = "DUPLICATE MAC ADDRESSES" Then
+            Application.DisplayAlerts = False
+            Sheets(sht).Delete
+            Application.DisplayAlerts = True
+        End If
+    Next sht
+    
+    
+    'Let's set a timer
+    start_time = Now
+    
+    'TEMP MOD
+    If UCase(Range("A1").Value) = "ACCOUNT_NUMBER" _
+        And UCase(Range("B1").Value) = "DAY_STAMP" _
+        And UCase(Range("C1").Value) = "NOC_NODE" _
+        And UCase(Range("D1").Value) = "CD_NODE" _
+        And UCase(Range("E1").Value) = "CMTS_NAME" _
+        And UCase(Range("F1").Value) = "STREET_NUMBER" _
+        And UCase(Range("G1").Value) = "STREET_NAME" _
+        And UCase(Range("H1").Value) = "CITY" _
+        And UCase(Range("I1").Value) = "STATE" _
+        And UCase(Range("J1").Value) = "ZIP_CODE" _
+        And UCase(Range("K1").Value) = "DEVICE_TYPE" _
+        And UCase(Range("L1").Value) = "EQUIPMENT_MAC" _
+        Then
+            Columns("H").Delete Shift:=xlToLeft
+            Columns("H").Delete Shift:=xlToLeft
+            Range("K1").FormulaR1C1 = "APPARENT_NODE_SPLIT"
+    End If
+    
+    'Lets make sure all the headers are intact and the same as usual
+    If UCase(Range("A1").Value) <> "ACCOUNT_NUMBER" _
+        Or UCase(Range("B1").Value) <> "DAY_STAMP" _
+        Or UCase(Range("C1").Value) <> "NOC_NODE" _
+        Or UCase(Range("D1").Value) <> "CD_NODE" _
+        Or UCase(Range("E1").Value) <> "CMTS_NAME" _
+        Or UCase(Range("F1").Value) <> "STREET_NUMBER" _
+        Or UCase(Range("G1").Value) <> "STREET_NAME" _
+        Or UCase(Range("H1").Value) <> "ZIP_CODE" _
+        Or UCase(Range("I1").Value) <> "DEVICE_TYPE" _
+        Or UCase(Range("J1").Value) <> "EQUIPMENT_MAC" _
+        Or UCase(Range("K1").Value) <> "APPARENT_NODE_SPLIT" _
+        Then
+            MsgBox "This sheet does not seem to be a standard Node Health Report because there seems to be a problem with the header labels.", vbCritical, "Unable to continue"
+            Exit Sub
+    End If
+    
+    'Sheets("NHR_CDNODE_IFALIAS_EXCEPTION_14").Name = "NHR_CDNODE_IFALIAS_EXCEPTION"
+    Application.ActiveSheet.Name = "NHR_CDNODE_IFALIAS_EXCEPTION"
+    
+    'Lets add the 3 new columns we need and then autofit all the columns for now (maybe highlight too)
+    Range("L1").Value = "B&C Research"
+    Range("L1").Interior.Color = RGB(255, 192, 0)
+    Range("M1").Value = "CD UPDATE STAT"
+    Range("M1").Interior.Color = RGB(255, 192, 0)
+    Range("N1").Value = "DUP ACCT"
+    Range("N1").Interior.Color = RGB(255, 192, 0)
+    Application.ActiveSheet.Columns("A:N").AutoFit
+    
+    Dim rowsCount As Long
+    rowsCount = Application.ActiveSheet.UsedRange.Rows.Count
+    
+    'Let's sort the MAC addresses first column 'J'
+    Range("J1").Select
+    Application.ActiveSheet.Sort.SortFields.Clear
+    Application.ActiveSheet.Sort.SortFields.Add Key:=Range("J1"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With Application.ActiveSheet.Sort
+        .SetRange Range("A2:N" & rowsCount)
+        .Header = xlNo
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    Dim memNHRarr() As Variant
+    memNHRarr = Worksheets("NHR_CDNODE_IFALIAS_EXCEPTION").Range("A1:N" & rowsCount).Value
+    
+    'MsgBox memNHRarr(1, 10) = "EQUIPMENT_MAC"
+    Dim j As Long
+    For j = 2 To rowsCount
+        If memNHRarr(j, 10) = memNHRarr(j - 1, 10) Then
+            memNHRarr(j, 12) = "Cloned MAC"
+            memNHRarr(j, 13) = "N"
+            memNHRarr(j, 12) = "Cloned MAC"
+            memNHRarr(j, 13) = "N"
+        End If
+    Next j
+    
+    Worksheets("NHR_CDNODE_IFALIAS_EXCEPTION").Range("A1:N" & rowsCount).Value = memNHRarr
+    
+    'Now let's sort the account numbers in column 'A'
+    Range("A1").Select
+    Application.ActiveSheet.Sort.SortFields.Clear
+    Application.ActiveSheet.Sort.SortFields.Add Key:=Range("A1"), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+    With Application.ActiveSheet.Sort
+        .SetRange Range("A2:N" & rowsCount)
+        .Header = xlNo
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    memNHRarr = Worksheets("NHR_CDNODE_IFALIAS_EXCEPTION").Range("A1:N" & rowsCount).Value
+    
+    'Now lets go line by line testing our checks and conditions
+    Dim i As Long
+    For i = 2 To rowsCount
+        'Look for DUPs
+        If Not i = rowsCount Then
+            If memNHRarr(i, 1) = memNHRarr(i + 1, 1) Then
+                memNHRarr(i, 14) = "DUP"
+                'memNHRarr(i + 1, 14) = "DUP"
+            End If
+        End If
+        
+        '03/07/2016 - Fix the very last row i remaining blank...
+        If memNHRarr(i, 14) = "" Then memNHRarr(i, 14) = "OK"
+        
+        'Fix for weird account number formatting in Excel
+        memNHRarr(i, 1) = "'" & memNHRarr(i, 1)
+        
+        'Look for Invalid Node names
+        If (Not IsNumeric(Left(Right(memNHRarr(i, 3), 6), 2)) And Not Left(Right(LCase(memNHRarr(i, 3)), 6), 1) = "x") _
+        Or Not IsNumeric(Right(LCase(memNHRarr(i, 3)), 3)) _
+        Or IsNumeric(Left(Right(LCase(memNHRarr(i, 3)), 4), 1)) _
+        Then
+            memNHRarr(i, 12) = "Invalid Node Name"
+            memNHRarr(i, 13) = "N"
+        End If
+        
+        'Look for Invalid Node names on other column
+'        If (Not IsNumeric(Left(Right(memNHRarr(i, 4), 6), 2)) And Not Left(Right(LCase(memNHRarr(i, 4)), 6), 1) = "x") _
+'        Or Not IsNumeric(Right(LCase(memNHRarr(i, 4)), 3)) _
+'        Or IsNumeric(Left(Right(LCase(memNHRarr(i, 4)), 4), 1)) _
+'        Then
+'            memNHRarr(i, 12) = "Invalid Node Name"
+'            memNHRarr(i, 13) = "N"
+'        End If
+        
+        '******************************************************************************************
+        '*** TEMPORARY *** Overriding code while the report is upgraded from Adam and Bob's side...
+'        If memNHRarr(i, 11) = "N" Then
+'            memNHRarr(i, 12) = "Not a Node Split"
+'            memNHRarr(i, 13) = "N"
+'        End If
+        '******************************************************************************************
+        
+        'FIX for nodes that are 888888 or 999999
+        If InStr(memNHRarr(i, 3), "88888") <> 0 _
+            Or InStr(memNHRarr(i, 4), "88888") <> 0 _
+            Or InStr(memNHRarr(i, 3), "99999") <> 0 _
+            Or InStr(memNHRarr(i, 4), "99999") <> 0 _
+            Or InStr(LCase(memNHRarr(i, 3)), "non") <> 0 _
+            Or InStr(LCase(memNHRarr(i, 4)), "non") <> 0 _
+            Then
+                memNHRarr(i, 12) = ""
+                memNHRarr(i, 13) = ""
+        End If
+        
+        'Look for Node accounts
+        If InStr(LCase(memNHRarr(i, 6)), "node") <> 0 _
+            Or InStr(LCase(memNHRarr(i, 7)), "node") <> 0 _
+            Then
+                memNHRarr(i, 12) = "Node Account"
+                memNHRarr(i, 13) = "N"
+        End If
+        
+        'If no issues, label everthing else for update!
+        If memNHRarr(i, 12) = "" And memNHRarr(i, 13) = "" Then
+            memNHRarr(i, 12) = "Update " & Date
+            memNHRarr(i, 13) = "Y"
+        End If
+        
+        'Ensure accuracy with the node columns
+        memNHRarr(i, 3) = "'" & memNHRarr(i, 3)
+        memNHRarr(i, 4) = "'" & memNHRarr(i, 4)
+    Next i
+    
+    Worksheets("NHR_CDNODE_IFALIAS_EXCEPTION").Range("A1:N" & rowsCount).Value = memNHRarr
+    
+    Application.ActiveSheet.Columns("A:N").AutoFit
+    Range("A1:N1").AutoFilter
+    
+    'Erase the array
+    Erase memNHRarr
+    
+    'Create our pivot table
+    'Call CreatePivot
+    Call CreatePivot
+    
+    'Create the CD UP sheet
+    'Call CreateCDUPSheet
+    Call CreateCDUPSheet
+    
+    'Let's get the end time
+    End_time = Now
+    
+    MsgBox "Report preperation completed in: " & Format(End_time - start_time, "hh:mm:ss")
+End Sub
+Sub CreatePivot()
+    Range("A1").Select
+    'totRows = Application.ActiveSheet.UsedRange.Rows.Count
+    'totColumns = Application.ActiveSheet.UsedRange.Columns.Count
+    SourceName = "NHR_CDNODE_IFALIAS_EXCEPTION"
+    Sheets.Add
+    pivotSheetname = ActiveSheet.Name
+    'MsgBox ActiveSheet.Name
+    
+    ActiveWorkbook.PivotCaches.Create(SourceType:=xlDatabase, SourceData:="'" & SourceName & "'!R1C1:R" & Application.Worksheets(SourceName).UsedRange.Rows.Count & "C" & Application.Worksheets(SourceName).UsedRange.Columns.Count, Version:=xlPivotTableVersion14).CreatePivotTable TableDestination:="'" & pivotSheetname & "'!R1C1", TableName:="PivotTable1", DefaultVersion:=xlPivotTableVersion14
+    'Sheets("Sheet23").Select
+    Cells(3, 1).Select
+    ActiveSheet.PivotTables("PivotTable1").AddDataField ActiveSheet.PivotTables("PivotTable1").PivotFields("ACCOUNT_NUMBER"), "Count of ACCOUNT_NUMBER", xlCount
+    With ActiveSheet.PivotTables("PivotTable1").PivotFields("DUP ACCT")
+        .Orientation = xlPageField
+        .Position = 1
+    End With
+    With ActiveSheet.PivotTables("PivotTable1").PivotFields("B&C Research")
+        .Orientation = xlRowField
+        .Position = 1
+    End With
+    ActiveSheet.PivotTables("PivotTable1").PivotFields("DUP ACCT").ClearAllFilters
+    ActiveSheet.PivotTables("PivotTable1").PivotFields("DUP ACCT").CurrentPage = "OK"
+    ActiveSheet.Name = "Summary"
+End Sub
+Sub CreateCDUPSheet()
+    'Create the new sheet with the data from the other
+    Worksheets("NHR_CDNODE_IFALIAS_EXCEPTION").Activate
+    ActiveSheet.Range("$A:N").AutoFilter Field:=12, Criteria1:="Update " & Date
+    ActiveSheet.Range("$A:N").AutoFilter Field:=14, Criteria1:="OK"
+    Range("A1:F" & Range("A" & Rows.Count).End(xlUp).Row).Copy
+    Sheets.Add After:=Sheets(Sheets.Count)
+    ActiveSheet.Name = "CD UP " & Format(Date, "mm.dd.yy")
+    ActiveSheet.Paste
+    Columns("A:F").EntireColumn.AutoFit
+    'Format the new sheet :)
+    Columns("B").ClearContents
+    Columns("E").ClearContents
+    Columns("C:D").Copy
+    Columns("E:F").Select
+    ActiveSheet.Paste
+    Columns("C:D").ClearContents
+    Columns("A").Select
+    Application.CutCopyMode = False
+    'Application.DisplayAlerts = False
+    Selection.TextToColumns Destination:=Range("B1"), DataType:=xlFixedWidth, FieldInfo:=Array(Array(0, 1), Array(4, 1), Array(10, 1)), TrailingMinusNumbers:=True
+    'Application.DisplayAlerts = True
+    Columns("B").NumberFormat = "0000"
+    Columns("C").NumberFormat = "000000"
+    Columns("D").NumberFormat = "00"
+    
+    Range("A1").FormulaR1C1 = "ACCOUNT_NUMBER"
+    Range("B1").FormulaR1C1 = "CORP"
+    Range("C1").FormulaR1C1 = "HOUSE"
+    Range("D1").FormulaR1C1 = "CUST"
+    Range("E1").FormulaR1C1 = "TRUE_NODE"
+    Range("F1").FormulaR1C1 = "CD_NODE"
+    
+    Columns("D:D").Delete Shift:=xlToLeft
+    Columns("A:E").EntireColumn.AutoFit
+    Range("F1").Select
+End Sub
+Sub DeleteNodeExclusions()
+    'If there are no workbooks open, exit the sub
+    If Application.Workbooks.Count < 1 Then
+        MsgBox "Please open at least 1 workbook to use this Macro.", vbExclamation, "Careful..."
+        Exit Sub
+    End If
+    
+    If Not (Range("A1").Value = "CORP" And Range("B1").Value = "HOUSE" And Range("C1").Value = "Census" And Range("D1").Value = "New Census") Then
+        MsgBox "Labels do not seem compatible.", vbExclamation, "Careful..."
+        Exit Sub
+    End If
+    
+    'Turn off Excel functionality to improve performance.
+    'Application.ScreenUpdating = False
+    'Application.DisplayStatusBar = False
+    'Application.Calculation = xlCalculationManual
+    'Application.EnableEvents = False
+    'Note: this is a sheet-level setting.
+    'ActiveSheet.DisplayPageBreaks = False
+    
+    start_time = Now
+    
+    'Immediately get names
+    workbookName = Application.ActiveWorkbook.Name
+    
+    Set wrkBk = Workbooks(workbookName).Worksheets("Node Health")
+    
+    wbLastRow = wrkBk.UsedRange.Rows.Count
+    
+    Dim wbRange() As Variant
+    wbRange = wrkBk.Range("A1:D" & wbLastRow).Value
+    
+    'NODE EXCLUSION LIST HERE------------------------------
+    For j = 2 To wbLastRow  'j is the row
+'            If wbRange(j, 3) = "65F111" _
+'            Or wbRange(j, 3) = "86D111" _
+'            Or wbRange(j, 3) = "86D113" _
+'            Or wbRange(j, 3) = "86D114" _
+'            Or wbRange(j, 3) = "86D115" _
+'            Or wbRange(j, 3) = "86D116" _
+'            Or wbRange(j, 3) = "12E129" _
+'            Or wbRange(j, 3) = "62B423" _
+'            Then
+'                wrkBk.Cells(j, 5) = 1
+'            End If
+            
+            If wbRange(j, 1) = "7840" Then
+                If wbRange(j, 2) = "755757" _
+                Or wbRange(j, 2) = "755821" _
+                Or wbRange(j, 2) = "755820" _
+                Or wbRange(j, 2) = "755761" _
+                Or wbRange(j, 2) = "755762" _
+                Or wbRange(j, 2) = "755760" _
+                Or wbRange(j, 2) = "755758" _
+                Or wbRange(j, 2) = "755759" _
+                Or wbRange(j, 2) = "755818" _
+                Or wbRange(j, 2) = "755819" _
+                Or wbRange(j, 2) = "755763" _
+                Or wbRange(j, 2) = "755845" _
+                Or wbRange(j, 2) = "960057" _
+                Then
+                    MsgBox "Found Stony Brook Account 7840-" & wbRange(j, 2), vbCritical, "Stony Brook Account Found"
+                    wrkBk.Cells(j, 5) = 1
+                End If
+            End If
+            
+'            If wbRange(j, 1) = "7868" Then
+'                If wbRange(j, 2) = "100011" _
+'                Or wbRange(j, 2) = "330052" _
+'                Then
+'                    wrkBk.Cells(j, 5) = 1
+'                End If
+'            End If
+'
+'            If wbRange(j, 1) = "7840" Then
+'                If wbRange(j, 2) = "973772" _
+'                Then
+'                    wrkBk.Cells(j, 5) = 1
+'                End If
+'            End If
+    Next j
+    
+    'MODIFY
+    Dim delRow As Long, delCount As Long
+    For delRow = 2 To wbLastRow
+        If wrkBk.Cells(delRow, 5) = 1 Then
+            delCount = delCount + 1
+            wrkBk.Range(delRow & ":" & delRow).Delete xlUp
+            delRow = delRow - 1
+        End If
+'        If wrkBk.Cells(delRow, 5) = 2 Then
+'            delCount = delCount + 1
+'            wrkBk.Range(delRow & ":" & delRow).Delete xlUp
+'            delRow = delRow - 1
+'        End If
+    Next delRow
+    
+    Erase wbRange 'Erase the array
+    
+'    Restore Excel settings to original state.
+'    Application.ScreenUpdating = screenUpdateState
+'    Application.DisplayStatusBar = statusBarState
+'    Application.Calculation = calcState
+'    Application.EnableEvents = eventsState
+'    Note: this is a sheet-level setting
+'    ActiveSheet.DisplayPageBreaks = displayPageBreaksState
+
+    End_time = Now
+    
+    MsgBox "Node exclusions completed in: " & Format(End_time - start_time, "hh:mm:ss") & vbNewLine & delCount & " entries have been excluded/deleted."
+    Exit Sub
+End Sub
+Sub NewCensusSheet()
+    'Let's make sure there's a workbook that's open already
+    Dim wrkbkCount As Integer
+    Dim wbk As Workbook
+    For Each wbk In Application.Workbooks
+        If wbk.Windows(1).Visible = True Then
+            wrkbkCount = wrkbkCount + 1
+        End If
+    Next wbk
+    'MsgBox "Workbook count = " & wrkbkCount
+    
+    'If there are no workbooks open, exit the sub
+    If wrkbkCount < 1 Then
+        MsgBox "Please open a Node Health Report sheet first", vbExclamation, "Careful..."
+        Exit Sub
+    End If
+    
+    'Check headings to make sure the current active sheet is indeed a Node Health prepped report
+    If Not (Range("A1").Value = "ACCOUNT_NUMBER" And Range("B1").Value = "CORP" And Range("C1").Value = "HOUSE" And Range("D1").Value = "TRUE_NODE" And Range("E1").Value = "CD_NODE") Then
+        MsgBox "This is not a compatible sheet.", vbCritical, "Sorry..."
+        Exit Sub
+    End If
+    
+    varSourceName = Application.ActiveWorkbook.Name
+    
+    Workbooks.Add
+    Application.DisplayAlerts = False
+    Sheets("Sheet1").Name = "Node Health"
+    'Sheets("Sheet2").Delete
+    'Sheets("Sheet3").Delete
+    Application.DisplayAlerts = True
+    
+    varDestName = Application.ActiveWorkbook.Name
+    
+    Windows(varSourceName).Activate
+    Columns("B:F").Select
+    Selection.Copy
+    Windows(varDestName).Activate
+    Range("A1").Select
+    ActiveSheet.Paste
+    Columns("D:D").Select
+    Application.CutCopyMode = False
+    Selection.Cut
+    Columns("C:C").Select
+    Selection.Insert Shift:=xlToRight
+    Range("B1").Select
+    ActiveCell.FormulaR1C1 = "HOUSE"
+    Range("C1").Select
+    ActiveCell.FormulaR1C1 = "Census"
+    Range("D1").Select
+    ActiveCell.FormulaR1C1 = "New Census"
+    Columns("A:D").Select
+    Columns("A:D").EntireColumn.AutoFit
+    Range("A1:D1").Select
+    With Selection.Interior
+        .Pattern = xlSolid
+        .PatternColorIndex = xlAutomatic
+        .ThemeColor = xlThemeColorDark1
+        .TintAndShade = -0.499984740745262
+        .PatternTintAndShade = 0
+    End With
+    With Selection.Font
+        .ThemeColor = xlThemeColorDark1
+        .TintAndShade = 0
+    End With
+    Selection.Font.Bold = True
+    Columns("A:D").Select
+    Range("D1").Activate
+    Columns("A:D").EntireColumn.AutoFit
+    Range("E1").Select
+    Range("E1").Select
+    
+    Call DeleteNodeExclusions
+End Sub
+Sub SaveNHRorCensus()
+    'If there are no workbooks open, exit the sub
+    If Application.Workbooks.Count < 1 Then
+        MsgBox "Please open a 'Node Health Report' or 'New Census' sheet first", vbExclamation, "Careful..."
+        Exit Sub
+    End If
+    
+    If (Left(Application.ActiveWorkbook.Name, 28) = "NHR_CDNODE_IFALIAS_EXCEPTION" Or Left(Application.ActiveWorkbook.Name, 25) = "cabledata_node_exceptions") And Worksheets.Count = 3 Then
+        fname = Application.ActiveWorkbook.Name
+        If InStr(fname, " ") > 1 Then fname = Left(fname, InStr(fname, " ") - 1)
+        If InStr(fname, ".") > 1 Then fname = Left(fname, InStr(fname, ".") - 1)
+        fname = "Q:\BILLING & COLLECTIONS\Business Technology Support\Billing Ops - Billing Admin Support\Projects\NODE Monthly Process\Tracking\Node Health Reports\2016\" & UCase(Trim(fname)) & "_BC_Validation.xlsx"
+        If MsgBox("This file will be saved as: " & fname & vbNewLine & vbNewLine & "Is this OK?", vbYesNo, "Saveing as...") = vbYes Then
+            On Error Resume Next
+            ActiveWorkbook.SaveAs Filename:=fname, FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+            If Err.Number = 0 Then
+                MsgBox "File successfully saved as: " & fname, vbInformation, "Saved"
+            End If
+        End If
+    ElseIf UCase(Range("A1").Value) = "CORP" And UCase(Range("B1").Value) = "HOUSE" And UCase(Range("C1").Value) = "CENSUS" And UCase(Range("D1").Value) = "NEW CENSUS" Then
+        fname = "Q:\BILLING & COLLECTIONS\Business Technology Support\Billing Ops - Billing Admin Support\Projects\NODE Monthly Process\Tracking\2016\Node Append Updates\Interim_Node_Append_Update_" & Format(Date, "mmddyyyy") & ".xlsx"
+        If MsgBox("This file will be saved as: " & fname & vbNewLine & vbNewLine & "Is this OK?", vbYesNo, "Saving as...") = vbYes Then
+            On Error Resume Next
+            ActiveWorkbook.SaveAs Filename:=fname, FileFormat:=xlOpenXMLWorkbook, CreateBackup:=False
+            
+            If Err.Number = 0 Then
+                MsgBox "File successfully saved as: " & fname, vbInformation, "Saved"
+                If LCase(Trim(ActiveSheet.Name)) <> "node health" Then ActiveSheet.Name = "Census Update"
+            End If
+        End If
+        
+        'Create the text file here
+        If (UCase(Range("A1").Value) = "CORP" And UCase(Range("B1").Value) = "HOUSE" And UCase(Range("C1").Value) = "CENSUS" And UCase(Range("D1").Value) = "NEW CENSUS") And (MsgBox("Would you like to generate the text file for Tandem?", vbYesNo, "Generate Tandem File") = vbYes) Then
+            WriteTextFile
+        End If
+    Else
+        MsgBox "This will only work with an already prepped Node Health Exceptions Report.", vbExclamation, "Careful..."
+    End If
+End Sub
+Sub WriteTextFile()
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set textFile = fso.CreateTextFile("Q:\BILLING & COLLECTIONS\Business Technology Support\Billing Ops - Billing Admin Support\Projects\NODE Monthly Process\Tracking\2016\Node Append Updates\Interim_Node_Append_Update_" & Format(Date, "mmddyyyy") & ".txt", True)
+    'Lastrow = ActiveSheet.UsedRange.Rows.count
+    Lastrow = ActiveSheet.Range("A" & Rows.Count).End(xlUp).Row
+    
+    'Throw everything into memory for speed using a variant array
+    Dim memCensusUpdate() As Variant
+    memCensusUpdate = ActiveSheet.Range("A1:D" & Lastrow).Value
+    
+    For j = 2 To Lastrow
+        'textFile.WriteLine " " & (Right(Cells(j, 1), 4) & "   " & Left("000000", 6 - Len(Cells(j, 2))) & Cells(j, 2) & "   " & Right(Cells(j, 4), 6))
+        textFile.WriteLine " " & (Right(memCensusUpdate(j, 1), 4) & "   " & Left("000000", 6 - Len(memCensusUpdate(j, 2))) & memCensusUpdate(j, 2) & "   " & Right(memCensusUpdate(j, 4), 6))
+    Next j
+    
+    Erase memCensusUpdate
+    textFile.Close
+    
+    MsgBox Lastrow - 1 & " records written to the text file.", vbInformation, "Success"
+End Sub
