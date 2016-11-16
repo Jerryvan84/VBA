@@ -1,0 +1,448 @@
+Sub AMC_Automation()
+    Dim AMC_XML As String
+    
+    If Workbooks.Count < 1 Then MsgBox "Please open a new worksheet", vbInformation: End
+    
+    Call GoFullScreen
+    Call FormatDashboard
+    
+    Do While True
+        AMC_XML = GetXML()
+        
+        If InStr(AMC_XML, "?xml version=") > 0 Then
+            Call XMLtoScreen(AMC_XML)
+            Call Wait(15)
+        End If
+    Loop
+    
+    Set IE = Nothing
+End Sub
+
+Function GetXML()
+    Dim XDoc As Object
+    Set XDoc = CreateObject("MSXML2.DOMDocument")
+    XDoc.async = False: XDoc.validateOnParse = False
+    XDoc.Load ("http://cved01:10052/work/Html/Xml/ABP1_AMC_AmDD_ocved11_Master_cved01!51.xml")
+    GetXML = XDoc.XML
+    Set XDoc = Nothing
+    
+    Exit Function
+Error:
+    GetXML = 0
+End Function
+
+Sub Wait(Optional minutes As Integer, Optional seconds As Integer)
+    If seconds = 0 Then seconds = 10
+    delayTime = Now + TimeValue("0:" & minutes & ":" & seconds)
+
+    Do While Now < delayTime: DoEvents: Loop
+End Sub
+'--------------------------------------------------------------------------------------------------------------------------------
+Sub Auto_Open()
+    If MsgBox("Run the AMC Custom Dashboard?", vbYesNo) = vbYes Then
+        ActiveSheet.Unprotect
+        Cells.Clear
+        Call AMC_Automation
+    End If
+End Sub
+'--------------------------------------------------------------------------------------------------------------------------------
+Sub Dashboard_Undo()
+    Call ShowTitleBar(True)
+End Sub
+
+Sub GoFullScreen()
+    'Protect the sheet only to get rid of the unsightly cell selection box
+    ActiveSheet.Protect UserInterfaceOnly:=True
+    ActiveSheet.EnableSelection = xlUnlockedCells
+    
+    Call ShowTitleBar(False)
+End Sub
+
+Sub FormatDashboard()
+    'This code is heavily static therefore must be reviewed with changes to column data
+    
+    'Reset Sheet
+    'Cells.Clear
+    
+    'Temporary Zoom Parameter
+    'ActiveWindow.Zoom = 122
+    
+    'Colors
+    Cells.Interior.Color = RGB(160, 73, 191)
+    Cells.Font.Color = RGB(255, 255, 255)
+    Rows("1:4").Interior.Color = RGB(255, 255, 255)
+    Rows("1:4").Font.Color = RGB(110, 46, 132)
+    Rows(5).Interior.Color = RGB(110, 46, 132)
+    
+    Cells.Font.Name = "Calibri"
+    Cells.Font.Size = 14
+    
+    Rows(5).RowHeight = 42
+    Rows(5).Font.Bold = True
+    Rows(5).Font.Size = 15
+    'Rows(5).Font.ThemeColor = xlThemeColorDark1
+    'Rows(5).Font.TintAndShade = 0
+    
+    Columns(1).ColumnWidth = 3
+    Columns(2).ColumnWidth = 8
+    Columns(3).Hidden = True
+    Columns(4).ColumnWidth = 11
+    Columns(5).Hidden = True
+    Columns(6).ColumnWidth = 6
+    Columns(7).ColumnWidth = 24
+    Columns(8).ColumnWidth = 23 '<<< NEW
+    Columns(9).ColumnWidth = 41
+    Columns(10).ColumnWidth = 12
+    Columns(11).ColumnWidth = 17
+    Columns(12).Hidden = True
+    Columns(13).ColumnWidth = 24
+    Columns(14).ColumnWidth = 14 'Careful here or full date will not fit
+    Columns(15).ColumnWidth = 14
+    Columns(16).ColumnWidth = 16
+    
+    Columns("B:P").HorizontalAlignment = xlCenter
+    
+    'Data & Number Formats
+    Columns(7).NumberFormat = "mm/dd h:mma/p"
+    Columns(8).NumberFormat = "mm/dd h:mma/p"
+    Columns(13).NumberFormat = "mm/dd h:mma/p"
+    
+    Columns(11).NumberFormat = "0%"
+    
+    Columns(14).NumberFormat = "#,##0"
+    Columns(15).NumberFormat = "#,##0"
+    Columns(16).NumberFormat = "#,##0"
+    
+    With Rows(5).Borders(xlEdgeTop)
+        .LineStyle = xlContinuous
+        .Color = -11133369
+        .TintAndShade = 0
+        .Weight = xlThick
+    End With
+    With Rows(6).Borders(xlEdgeTop)
+        .LineStyle = xlContinuous
+        .Color = -11133369
+        .TintAndShade = 0
+        .Weight = xlThick
+    End With
+    
+    Call InsertAlticeLogo
+    Call DisplayDate
+    Call LastRefreshedSetup
+    Call DrawDataBackground
+    
+    'AutoZoom
+    Range("A:O").Select
+    ActiveWindow.Zoom = True
+
+    'Hide the Selection box
+    ActiveSheet.Range("IV65536").Select
+    ActiveWindow.ScrollColumn = 1
+    ActiveWindow.ScrollRow = 1
+End Sub
+
+Sub DrawDataBackground()
+        For I = 6 To 100 'Range("B" & Rows.Count).End(xlUp).Row
+            If I Mod 2 <> 0 Then
+                Rows(I).Interior.Color = RGB(110, 46, 132) 'Dark Fusha
+            Else
+                Rows(I).Interior.Color = RGB(160, 73, 191) 'Light Fusha
+            End If
+        Next I
+End Sub
+
+Sub InsertAlticeLogo()
+    logoPath = Application.ActiveWorkbook.Path & "\AlticeLogo.png"
+    
+    On Error GoTo Error
+    Cells(1, 1).Select
+    With ActiveSheet.Pictures.Insert(logoPath)
+        With .ShapeRange
+            .LockAspectRatio = msoTrue
+            '.Width = 50
+            .Height = 77
+        End With
+        
+        .Left = ActiveSheet.Cells(4, 2).Left
+        '.Top = ActiveSheet.Cells(2, 1).Top
+        '.Placement = 2
+        '.PrintObject = True
+    End With
+
+Error:
+    Exit Sub
+End Sub
+
+Sub DisplayDate()
+    With Range("I3:P4")
+        .Merge
+        .HorizontalAlignment = xlRight
+        .VerticalAlignment = xlCenter
+        .Font.Name = "Calibri"
+        .Font.Size = 31
+        .Font.Bold = True
+        .NumberFormat = "[$-F800]dddd, mmmm dd, yyyy"
+        .FormulaR1C1 = "=NOW()"
+    End With
+End Sub
+
+Sub LastRefreshedSetup()
+    'Range("M1") = "Last Update:"
+    'Range("M1").HorizontalAlignment = xlRight
+    
+    Range("M1:P1").Merge True
+    Range("M1").HorizontalAlignment = xlRight
+    Range("M1").NumberFormat = "MM/DD/YYYY HH:MM:SS AM/PM"
+    Range("M1").HorizontalAlignment = xlRight
+    'Range("M1") = "Last Update: " & Now()
+End Sub
+'--------------------------------------------------------------------------------------------------------------------------------
+'http://answers.microsoft.com/en-us/office/forum/office_2010-excel/how-can-i-remove-hide-the-2010-excel-title-bar/c9a0816f-0c09-4f37-aa03-8f9e12e6e56f
+
+Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" (ByVal hwnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
+Private Declare Function GetWindowLong Lib "user32" Alias "GetWindowLongA" (ByVal hwnd As Long, ByVal nIndex As Long) As Long
+
+'Added by Jerry
+Private Declare Function ShowCursor Lib "user32" (ByVal bShow As Long) As Long
+
+Private Const GWL_STYLE = (-16)
+Private Const WS_CAPTION = &HC00000
+Private Const WS_MAXIMIZEBOX = &H10000
+Private Const WS_MINIMIZEBOX = &H20000
+Private Const WS_SYSMENU = &H80000
+ 
+Private Declare Function SetWindowPos Lib "user32" (ByVal hwnd As Long, ByVal hWndInsertAfter As Long, ByVal x As Long, ByVal y As Long, ByVal cx As Long, ByVal cy As Long, ByVal wFlags As Long) As Long
+
+Private Enum ESetWindowPosStyles
+    SWP_SHOWWINDOW = &H40
+    SWP_HIDEWINDOW = &H80
+    SWP_FRAMECHANGED = &H20
+    SWP_NOACTIVATE = &H10
+    SWP_NOCOPYBITS = &H100
+    SWP_NOMOVE = &H2
+    SWP_NOOWNERZORDER = &H200
+    SWP_NOREDRAW = &H8
+    SWP_NOREPOSITION = SWP_NOOWNERZORDER
+    SWP_NOSIZE = &H1
+    SWP_NOZORDER = &H4
+    SWP_DRAWFRAME = SWP_FRAMECHANGED
+    HWND_NOTOPMOST = -2
+End Enum
+
+Private Declare Function GetWindowRect Lib "user32" (ByVal hwnd As Long, lpRect As RECT) As Long
+
+Private Type RECT
+    Left As Long
+    Top As Long
+    Right As Long
+    Bottom As Long
+End Type
+
+Sub ShowTitleBar(bShow As Boolean)
+    '---------------------------------------------------------------
+    'Make sure it's maximized -Jerry
+    If Not bShow Then Application.WindowState = xlMaximized
+    
+    'Hide the cursor (using the user32 things above)
+    'ShowCursor False
+    '---------------------------------------------------------------
+    
+    Dim lStyle As Long
+    Dim tRect As RECT
+    Dim xlHnd As Long
+    
+    xlHnd = Application.hwnd
+    
+    'Get the window's position:
+    GetWindowRect xlHnd, tRect
+    
+    'Show the Title bar ?
+    If Not bShow Then
+        lStyle = GetWindowLong(xlHnd, GWL_STYLE)
+        lStyle = lStyle And Not WS_SYSMENU
+        lStyle = lStyle And Not WS_MAXIMIZEBOX
+        lStyle = lStyle And Not WS_MINIMIZEBOX
+        lStyle = lStyle And Not WS_CAPTION
+    Else
+        lStyle = GetWindowLong(xlHnd, GWL_STYLE)
+        lStyle = lStyle Or WS_SYSMENU
+        lStyle = lStyle Or WS_MAXIMIZEBOX
+        lStyle = lStyle Or WS_MINIMIZEBOX
+        lStyle = lStyle Or WS_CAPTION
+    End If
+    
+    SetWindowLong xlHnd, GWL_STYLE, lStyle
+    
+    Application.DisplayFullScreen = Not bShow
+    
+    '---------------------------------------------------------------
+    'Added by Jerryvan Rosado
+    
+     ActiveWindow.DisplayGridlines = bShow
+     ActiveWindow.DisplayHeadings = bShow
+     ActiveWindow.DisplayHorizontalScrollBar = bShow
+     ActiveWindow.DisplayVerticalScrollBar = bShow
+     ActiveWindow.DisplayWorkbookTabs = bShow
+     If bShow Then ActiveSheet.Unprotect
+    '---------------------------------------------------------------
+    
+    'Ensure the style is set and makes the xlwindow the
+    'same size, regardless of the title bar.
+    SetWindowPos xlHnd, 0, tRect.Left, tRect.Top, tRect.Right - tRect.Left, tRect.Bottom - tRect.Top, SWP_NOREPOSITION Or SWP_NOZORDER Or SWP_FRAMECHANGED
+End Sub
+'--------------------------------------------------------------------------------------------------------------------------------
+Sub XMLtoScreen(XML As String)
+    Dim varRow, dataPart As Integer
+    
+    'Assigned columns
+    Const col_Corp = 2
+    Const col_Year = 3
+    Const col_MonthCycle = 4
+    Const col_Cycle = 5
+    Const col_RunNumber = 6
+    Const col_TagArrTime = 7
+    Const col_QANotif = 8
+    Const col_CorpStat = 9
+    Const col_CurrentStep = 10
+    Const col_PercentComplete = 11
+    Const col_TotStmtAmt = 12
+    Const col_ConfCompTime = 13
+    Const col_AFPStmtCnt = 14
+    Const col_PaperLessStmt = 15
+    Const col_TotStmtCnt = 16
+    
+    varRow = 5 'Start the row at 5
+    
+    Cells(varRow, col_Corp) = "CORP"
+    Cells(varRow, col_Year) = "YEAR"
+    Cells(varRow, col_MonthCycle) = "MONTH" & vbCrLf & "CYCLE"
+    Cells(varRow, col_Cycle) = "CYCLE"
+    Cells(varRow, col_RunNumber) = "RUN" & vbCrLf & "No."
+    Cells(varRow, col_TagArrTime) = "TAG ARRIVAL TIME"
+    Cells(varRow, col_QANotif) = "QA NOTIFICATION"
+    Cells(varRow, col_CorpStat) = "CORP STATUS"
+    Cells(varRow, col_CurrentStep) = "CURRENT" & vbCrLf & "STEP of 6"
+    Cells(varRow, col_PercentComplete) = "PERCENTAGE" & vbCrLf & "COMPLETED"
+    Cells(varRow, col_TotStmtAmt) = "TOTAL STMT" & vbCrLf & "AMOUNT"
+    Cells(varRow, col_ConfCompTime) = "CONFIRMATION" & vbCrLf & "COMPLETION TIME"
+    Cells(varRow, col_AFPStmtCnt) = "PRINTED" & vbCrLf & "COUNT"
+    Cells(varRow, col_PaperLessStmt) = "PAPERLESS" & vbCrLf & "COUNT"
+    Cells(varRow, col_TotStmtCnt) = "TOTAL STMT" & vbCrLf & "COUNT"
+    
+    For Each xmlRow In Split(XML, Chr(10))
+        xmlTag = Trim(Left(xmlRow, InStr(xmlRow, ">")))
+        
+        'Fix for where Trim() fails to remove blank spaces?
+        xmlTag = Right(xmlTag, Len(xmlTag) - (InStr(xmlTag, "<") - 1))
+        
+        Select Case xmlTag
+            Case "<ROW>"
+                dataPart = 1
+                varRow = varRow + 1
+            Case "<DATA>"
+                Select Case dataPart
+                    Case 1
+                        'Corp
+                        Cells(varRow, col_Corp) = InnerXMLText(xmlRow)
+                    Case 2
+                        'Year(Hidden)
+                        Cells(varRow, col_Year) = InnerXMLText(xmlRow)
+                    Case 3
+                        'Month(Cycle)
+                        Cells(varRow, col_MonthCycle) = InnerXMLText(xmlRow)
+                    Case 4
+                        'Cycle(Hidden)
+                        Cells(varRow, col_Cycle) = InnerXMLText(xmlRow)
+                    Case 5
+                        'Run Number
+                        Cells(varRow, col_RunNumber) = InnerXMLText(xmlRow)
+                    Case 6
+                        'Tag Arrival Time
+                        Cells(varRow, col_TagArrTime) = InnerXMLText(xmlRow)
+                    Case 7
+                        'QA Notification Time
+                        Cells(varRow, col_QANotif) = InnerXMLText(xmlRow)
+                    Case 8
+                        'Corp Status
+                        Cells(varRow, col_CorpStat) = InnerXMLText(xmlRow)
+                    Case 9
+                        'Total Statement Amount(Hidden)
+                        Cells(varRow, col_TotStmtAmt) = InnerXMLText(xmlRow)
+                    Case 10
+                        'Printed (AFP) Statment Count
+                        Cells(varRow, col_AFPStmtCnt) = InnerXMLText(xmlRow)
+                    Case 11
+                        'Total Statment Count
+                        Cells(varRow, col_TotStmtCnt) = InnerXMLText(xmlRow)
+                    Case 12
+                        'Confirmation Completion Time
+                        Cells(varRow, col_ConfCompTime) = InnerXMLText(xmlRow)
+                End Select
+                
+                dataPart = dataPart + 1
+            Case "</ROW>"
+                'Update rows that have to be calculated or concatenated
+                Cells(varRow, col_MonthCycle) = Cells(varRow, col_MonthCycle) & Cells(varRow, col_Cycle)
+                Cells(varRow, col_PaperLessStmt) = Cells(varRow, col_TotStmtCnt) - Cells(varRow, col_AFPStmtCnt)
+                
+                'Translate the Status into readable form
+                If Cells(varRow, col_CorpStat) = "PRE-QA/IN PROCESS" Then
+                    Cells(varRow, col_CorpStat) = "AmDD - Processing Billing File (TAG)"
+                    Cells(varRow, col_CurrentStep) = 1
+                    Cells(varRow, col_PercentComplete) = 0.17
+                ElseIf Cells(varRow, col_CorpStat) = "QA-REVIEWED" Then
+                    Cells(varRow, col_CorpStat) = "AMC - Quality Assurance Step"
+                    Cells(varRow, col_CurrentStep) = 2
+                    Cells(varRow, col_PercentComplete) = 0.33
+                ElseIf Cells(varRow, col_CorpStat) = "AFP-SENT" Then
+                    Cells(varRow, col_CorpStat) = "Released for Quality Validation" 'Jim -> "XXX - Released for Quality Validation"
+                    Cells(varRow, col_CurrentStep) = 3
+                    Cells(varRow, col_PercentComplete) = 0.5
+                ElseIf Cells(varRow, col_CorpStat) = "CONFIRM-STARTING SHORTLY" Then
+                    Cells(varRow, col_CorpStat) = "AMC - Confirmation Initiated"
+                    Cells(varRow, col_CurrentStep) = 4
+                    Cells(varRow, col_PercentComplete) = 0.67
+                ElseIf Cells(varRow, col_CorpStat) = "CONFIRM-IN-PROGRESS" Then
+                    Cells(varRow, col_CorpStat) = "AmDD - Batch Soon to Start"
+                    Cells(varRow, col_CurrentStep) = 5
+                    Cells(varRow, col_PercentComplete) = 0.83
+                ElseIf Cells(varRow, col_CorpStat) = "CONFIRM-COMPLETE" Then
+                    Cells(varRow, col_CorpStat) = "AmSS - PDF Bills Available"
+                    Cells(varRow, col_CurrentStep) = 6
+                    Cells(varRow, col_PercentComplete) = 1
+                ElseIf Cells(varRow, col_CorpStat) = "CANCELLED" Then
+                    Cells(varRow, col_CorpStat) = "AmDD - Corp Re-run"
+                    Cells(varRow, col_CurrentStep) = 0
+                    Cells(varRow, col_PercentComplete) = 0
+                End If
+                'Let's fill in the data for Current Step and Percentage Completed
+                
+                
+                
+                'Step back a row to Overwrite this current Row
+                If Cells(varRow, col_Corp) = 99999 Then varRow = varRow - 1
+        End Select
+    Next xmlRow
+    
+    'Call DataModifications
+    
+    'Update time
+    Range("I3:O4").Calculate
+    
+    'Update Refresh time too
+    Range("M1") = "Last Update: " & Now()
+End Sub
+
+Sub DataModifications()
+    For I = 6 To Range("I" & Rows.Count).End(xlUp).Row
+        'Get rid of Corps 99999
+        If Cells(I, 2) = 99999 Then Rows(I).Delete Shift:=xlUp: I = I - 1
+    Next I
+End Sub
+
+Function InnerXMLText(ByVal xmlRow As String)
+    xmlRow = Right(xmlRow, Len(xmlRow) - InStr(xmlRow, ">"))
+    xmlRow = Left(xmlRow, InStr(xmlRow, "</") - 1)
+    InnerXMLText = UCase(Trim(Replace(xmlRow, "_", " ")))
+End Function
