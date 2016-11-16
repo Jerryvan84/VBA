@@ -1,0 +1,284 @@
+Sub GoogleGeocodingAPI()
+    'This uses the Google Geocoding API to attempt to return a valid address
+    Dim c As Long
+    Dim lookupAddress As String
+    Dim API_Key As String
+    Dim XMLGeocodingRequest As String
+    Dim myDom As Object
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    
+    For i = 3 To Range("A" & Rows.Count).End(xlUp).Row
+        '*** If the row is hidden, skip it! ****
+        If Rows(i).Hidden = True Then GoTo nextRecord
+        
+        'lookupAddress = Trim(Cells(i, 6)) & "," & Trim(Cells(i, 7)) & "," & Trim(Cells(i, 8)) & "," & Right("00000" & Trim(Cells(i, 9)), 5)
+        'temp
+        lookupAddress = Trim(Cells(i, 43)) & " " & Trim(Cells(i, 46)) & " " & Trim(Cells(i, 47)) & "," & Trim(Cells(i, 7)) & "," & Trim(Cells(i, 8)) & "," & Right("00000" & Trim(Cells(i, 9)), 5)
+
+        API_Key = "AIzaSyDaEGc37KMzrAzrWA7AnndY9kwCk0TgNmY"
+        
+        XMLGeocodingRequest = "https://maps.googleapis.com/maps/api/geocode/xml?address=" & replace(lookupAddress, " ", "+") & "&key=" & API_Key
+        
+        myDom.async = False
+        myDom.Load (XMLGeocodingRequest)
+        
+        c = 82 'All the way in the blanks just to see what's up then eventually bring the data over
+        caseElseCell = 0
+        
+        For Each xmlNode In myDom.getElementsByTagName("*")
+            For Each myNode In xmlNode.ChildNodes
+                If myNode.NodeTypeString = "text" Then
+                    'Look for "lat" as in lattitude to get out of the loop in case there are 2 or more results
+                    If xmlNode.nodeName = "lat" Then
+                        GoTo nextRecord:
+                    End If
+                    
+                    Select Case xmlNode.Text
+                        Case "street_number"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 26) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "route"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 27) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "sublocality_level_1"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 28) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "locality"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 28) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "administrative_area_level_1"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 29) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "postal_code"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 30) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "postal_code_suffix"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 31) = UCase(xmlNode.PreviousSibling.Text)
+                        Case "country"
+                            If Not xmlNode.PreviousSibling Is Nothing Then Cells(i, 32) = UCase(xmlNode.PreviousSibling.Text)
+'                        Case Else
+'                            Cells(i, c + caseElseCell) = xmlNode.nodeName & ": " & xmlNode.Text
+'                            caseElseCell = caseElseCell + 1
+                    End Select
+                End If
+            Next myNode
+        Next xmlNode
+nextRecord:
+    Next i
+End Sub
+
+Sub USPSAddressLookupFromCASSAddressAPI()
+    Dim myXML As String
+    
+    Dim myDom As Object
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    
+    myDom.async = False
+    
+    'Enter number of column for corresponding data
+    
+    CASS_Firmname = 5
+    CASS_Address1 = 6
+    'Address2 contains street number and street name (=BG2&" "&BJ2)
+    CASS_Address2_1 = 200
+    CASS_Address2_2 = 7
+    CASS_City = 8
+    CASS_State = 9
+    CASS_Zip5 = 10
+    CASS_Zip4 = 11
+    
+    'Enter column number where you want the data returned
+    
+    USPS_Firmname = 33
+    USPS_Address1 = 34
+    USPS_Address2 = 35
+    USPS_City = 36
+    USPS_State = 37
+    USPS_Zip5 = 38
+    USPS_Zip4 = 39
+    
+    'This is the starting row number ( i = #)
+    
+    For i = 2 To Range("A" & Rows.Count).End(xlUp).Row
+        If Rows(i).Hidden = True Then GoTo skipIteration
+        If Cells(i, 39) <> "" Then GoTo skipIteration
+
+        myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+            "<AddressValidateRequest USERID=""737NA0000658"">" & _
+            "<IncludeOptionalElements>false</IncludeOptionalElements>" & _
+            "<ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+                "<Address>" & _
+                    "<FirmName>" & Trim(Cells(i, CASS_Firmname)) & "</FirmName>" & _
+                    "<Address1>" & Trim(Cells(i, CASS_Address1)) & "</Address1>" & _
+                    "<Address2>" & ReviewCorrectCASSAddress(Trim(Cells(i, CASS_Address2_1)) & " " & Trim(Cells(i, CASS_Address2_2))) & "</Address2>" & _
+                    "<City>" & Trim(Cells(i, CASS_City)) & "</City>" & _
+                    "<State>" & Trim(Cells(i, CASS_State)) & "</State>" & _
+                    "<Urbanization></Urbanization>" & _
+                    "<Zip5>" & Right("00000" & Trim(Cells(i, CASS_Zip5)), 5) & "</Zip5>" & _
+                    "<Zip4></Zip4>" & _
+                "</Address>" & _
+            "</AddressValidateRequest>"
+        
+        myDom.Load (myXML)
+        
+        For Each xmlNode In myDom.getElementsByTagName("*")
+            For Each myNode In xmlNode.ChildNodes
+                If myNode.NodeTypeString = "text" Then
+                    Select Case xmlNode.nodeName
+                        Case "FirmName"
+                            Cells(i, USPS_Firmname) = xmlNode.Text
+                        Case "Address1"
+                            Cells(i, USPS_Address1) = xmlNode.Text
+                        Case "Address2"
+                            Cells(i, USPS_Address2) = xmlNode.Text
+                        Case "City"
+                            Cells(i, USPS_City) = xmlNode.Text
+                        Case "State"
+                            Cells(i, USPS_State) = xmlNode.Text
+                        Case "Zip5"
+                            Cells(i, USPS_Zip5) = "'" & xmlNode.Text
+                        Case "Zip4"
+                            Cells(i, USPS_Zip4) = "'" & xmlNode.Text
+                    End Select
+                End If
+            Next myNode
+        Next xmlNode
+        DoEvents
+skipIteration:
+    Next i
+    
+    Set myDom = Nothing
+    Set xmlNode = Nothing
+    Set myNode = Nothing
+End Sub
+
+Function ReviewCorrectCASSAddress(address As String)
+    address = RemoveReplaceWordFromString(address, "COMM")
+    address = RemoveReplaceWordFromString(address, "TNPK", "TPK")
+    address = RemoveReplaceWordFromString(address, "TPKE", "TPK")
+    address = RemoveReplaceWordFromString(address, "AV", "AVE")
+    address = RemoveReplaceWordFromString(address, "SUI", "STE")
+    
+    ReviewCorrectCASSAddress = Trim(address)
+End Function
+
+Function RemoveReplaceWordFromString(str As String, word As String, Optional replace As String)
+    strArr = Split(str, " ")
+    str = ""
+    
+    For Each Item In strArr
+        'Debug.Print Item
+        
+        If Item = Trim(word) Then
+            Item = replace
+        End If
+        
+        str = str & " " & Item
+    Next
+    
+    RemoveReplaceWordFromString = Trim(str)
+End Function
+
+Sub USPSAddressLookupFromGoogleAddressAPI()
+    Dim myXML As String
+    
+    Dim myDom As Object
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    
+    myDom.async = False
+    
+    For i = 3 To Range("A" & Rows.Count).End(xlUp).Row
+        If Rows(i).Hidden = True Then GoTo skipIteration
+        If Cells(i, 39) <> "" Then GoTo skipIteration
+
+        SELECT_STRING = "GOOGLE"
+
+        If SELECT_STRING = "CASS" Then
+            myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+                "<AddressValidateRequest USERID=""737NA0000658"">" & _
+                "<IncludeOptionalElements>true</IncludeOptionalElements>" & _
+                "<ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+                    "<Address>" & _
+                        "<FirmName>" & Trim(Cells(i, 4)) & "</FirmName>" & _
+                        "<Address1>" & Trim(Cells(i, 5)) & "</Address1>" & _
+                        "<Address2>" & Trim(Cells(i, 6)) & "</Address2>" & _
+                        "<City>" & Trim(Cells(i, 7)) & "</City>" & _
+                        "<State>" & Trim(Cells(i, 8)) & "</State>" & _
+                        "<Urbanization></Urbanization>" & _
+                        "<Zip5>" & Right("00000" & Trim(Cells(i, 9)), 5) & "</Zip5>" & _
+                        "<Zip4></Zip4>" & _
+                    "</Address>" & _
+                "</AddressValidateRequest>"
+        ElseIf SELECT_STRING = "GOOGLE" Then
+            myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+                "<AddressValidateRequest USERID=""737NA0000658"">" & _
+                "<IncludeOptionalElements>true</IncludeOptionalElements>" & _
+                "<ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+                    "<Address>" & _
+                        "<FirmName></FirmName>" & _
+                        "<Address1></Address1>" & _
+                        "<Address2>" & Trim(Cells(i, 26)) & " " & Trim(Cells(i, 27)) & "</Address2>" & _
+                        "<City>" & Trim(Cells(i, 28)) & "</City>" & _
+                        "<State>" & Trim(Cells(i, 29)) & "</State>" & _
+                        "<Urbanization></Urbanization>" & _
+                        "<Zip5>" & Right("00000" & Trim(Cells(i, 30)), 5) & "</Zip5>" & _
+                        "<Zip4></Zip4>" & _
+                    "</Address>" & _
+                "</AddressValidateRequest>"
+        End If
+        
+        myDom.Load (myXML)
+        
+        For Each xmlNode In myDom.getElementsByTagName("*")
+            For Each myNode In xmlNode.ChildNodes
+                If myNode.NodeTypeString = "text" Then
+                    Select Case xmlNode.nodeName
+                        Case "FirmName"
+                            Cells(i, 33) = xmlNode.Text
+                        Case "Address1"
+                            Cells(i, 34) = xmlNode.Text
+                        Case "Address2"
+                            Cells(i, 35) = xmlNode.Text
+                        Case "City"
+                            Cells(i, 36) = xmlNode.Text
+                        Case "State"
+                            Cells(i, 37) = xmlNode.Text
+                        Case "Zip5"
+                            Cells(i, 38) = "'" & xmlNode.Text
+                        Case "Zip4"
+                            Cells(i, 39) = "'" & xmlNode.Text
+                    End Select
+                End If
+            Next myNode
+        Next xmlNode
+skipIteration:
+    Next i
+    
+    Set myDom = Nothing
+    Set xmlNode = Nothing
+    Set myNode = Nothing
+End Sub
+Sub DSTCASSReportSheetsMerge()
+    Dim rowCountPreShot As Long
+    rowCountPreShot = 0
+    For i = 1 To Sheets.Count
+        rowCountPreShot = rowCountPreShot + Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row - 1
+    Next i
+    
+    For i = Sheets.Count To 1 Step -1
+        If i = 1 Then GoTo rowCountCheck
+        
+        CurentRows = Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row
+        previousRows = Worksheets(i - 1).Range("B" & Rows.Count).End(xlUp).Row
+                
+        Worksheets(i - 1).Range("B" & previousRows + 1 & ":M" & CurentRows + previousRows - 1).Value = Worksheets(i).Range("B2:M" & CurentRows).Value
+        
+        Application.DisplayAlerts = False
+        Worksheets(i).Delete
+        Application.DisplayAlerts = True
+    Next i
+
+rowCountCheck:
+    rowCountPostShot = 0
+    rowCountPostShot = Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row - 1
+    
+    If rowCountPreShot = rowCountPostShot Then
+        MsgBox "Merge Complete. Row count seems intact.", vbInformation
+    Else
+        MsgBox "Something seems off about the row count numbers, please recheck the Macro logic.", vbCritical
+    End If
+End Sub
