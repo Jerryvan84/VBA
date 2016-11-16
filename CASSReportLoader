@@ -1,0 +1,265 @@
+Sub CASSMain()
+    If Workbooks.Count < 1 Then Workbooks.Add
+    
+    Dim wbk As Workbook
+    Set wbk = Application.ActiveWorkbook
+    
+    If Not (wbk.ActiveSheet.UsedRange.Rows.Count = 1 And wbk.ActiveSheet.UsedRange.Columns.Count = 1 And wbk.ActiveSheet.Cells(1, 1).Value = "") Then
+        MsgBox "Please open a new Workbook with a blank Worksheet to begin", vbCritical
+        End
+    End If
+    
+    Call LoadCASSFilesToWorksheets(wbk)
+    
+    For i = 1 To wbk.Sheets.Count
+        wbk.Sheets(i).Activate
+        Call DSTCASSReportGenerator
+    Next i
+    
+    Call DSTCASSReportSheetsMerge
+    
+    Set wbk = Nothing
+End Sub
+
+Sub LoadCASSFilesToWorksheets(ByRef wbk As Workbook)
+    Dim fpath As String
+    Dim fname As String
+
+    'fpath = "C:\Jerryvan\My Projects\Address Cleanse Project\Download Callback Servlet Details CIS\"
+    fpath = GetFolder("C:\Jerryvan\My Projects\Address Cleanse Project\Download Callback Servlet Details CIS\")
+    fname = Dir(fpath & "*.rpt")
+    fileNum = 1
+    
+    If Len(fname) < 1 Then MsgBox "No CASS Error .rpt files were found in folder: " & fpath, vbExclamation
+    
+    While (Len(fname) > 0)
+        If fileNum > 1 Then Sheets.Add After:=Sheets(Sheets.Count)
+        'INSERT CODE HERE to create a workbook if none is open
+        
+        With wbk.ActiveSheet.QueryTables.Add(Connection:="TEXT;" & fpath & fname, Destination:=Range("A1"))
+            .Name = "a" & idx
+            .FieldNames = True
+            .RowNumbers = False
+            .FillAdjacentFormulas = False
+            .PreserveFormatting = True
+            .RefreshOnFileOpen = False
+            .RefreshStyle = xlInsertDeleteCells
+            .SavePassword = False
+            .SaveData = True
+            .AdjustColumnWidth = True
+            .RefreshPeriod = 0
+            .TextFilePromptOnRefresh = False
+            .TextFilePlatform = 437
+            .TextFileStartRow = 1
+            .TextFileParseType = xlDelimited
+            .TextFileTextQualifier = xlTextQualifierDoubleQuote
+            .TextFileConsecutiveDelimiter = False
+            .TextFileTabDelimiter = False
+            .TextFileSemicolonDelimiter = False
+            .TextFileCommaDelimiter = False
+            .TextFileSpaceDelimiter = False
+            '.TextFileOtherDelimiter = "|"
+            .TextFileColumnDataTypes = Array(1, 1, 1)
+            .TextFileTrailingMinusNumbers = True
+            .Refresh BackgroundQuery:=False
+            fname = Dir
+        End With
+        fileNum = fileNum + 1
+    Wend
+End Sub
+
+Function GetFolder(strPath As String) As String
+    Dim fldr As FileDialog
+    Dim sItem As String
+    Set fldr = Application.FileDialog(msoFileDialogFolderPicker)
+    
+    With fldr
+        .Title = "Open the folder with CASS Error reports"
+        .AllowMultiSelect = False
+        .InitialFileName = strPath
+        .ButtonName = "Select Current Folder"
+        If .Show <> -1 Then GoTo NextCode
+        sItem = .SelectedItems(1)
+    End With
+    
+    If Right(sItem, 1) <> "\" Then sItem = sItem & "\"
+NextCode:
+    GetFolder = sItem
+    Set fldr = Nothing
+End Function
+
+Sub DSTCASSReportGenerator()
+    numRows = ActiveSheet.UsedRange.Count
+    
+    For i = 1 To numRows + 2
+        'Handle the issue with the "=-something" problems or seen as error 13
+        If Cells(i, 1).Text = "#NAME?" Then
+            Cells(i, 1) = Right(Trim(Cells(i, 1).Formula), Len(Trim(Cells(i, 1).Formula)) - 1)
+        End If
+        
+        If Left(Trim(Cells(i, 1)), 3) = "078" Then
+            If corpFound = True Then 'If already true before getting at this point
+                If MsgBox("Dual account numbers found for one entry on Row " & i & ". Would you like to just continue with this error?", vbExclamation + vbYesNo) = vbNo Then
+                    End
+                End If
+            End If
+            
+            firstRowSet = i
+            corpFound = True
+        End If
+        
+        If InStr(Cells(i, 1), "----------") <> 0 Then
+            lastRowSet = i - 1
+            
+            If firstRowSet = "" Then GoTo endsub
+            
+            tempStr = Trim(Cells(firstRowSet, 1))
+            
+            acctNum = Trim(Left(tempStr, 20))
+            corp = Left(acctNum, 5)
+            HOUSE = Mid(acctNum, 7, 6)
+            cust = Mid(acctNum, 14, 2)
+            
+            errMsg = Trim(Right(tempStr, Len(tempStr) - Len(acctNum)))
+            errCode = Trim(Left(errMsg, 5))
+            errDesc = Trim(Right(errMsg, Len(errMsg) - Len(errCode)))
+            
+            If lastRowSet - firstRowSet + 1 = 5 Then 'Firmname is apparently included in the results
+                frmName = Trim(Cells(firstRowSet + 1, 1))
+            End If
+            
+            address1 = Trim(Cells(lastRowSet - 2, 1))
+            address2 = Trim(Cells(lastRowSet - 1, 1))
+            
+            cityStateZip = Trim(Cells(lastRowSet, 1))
+            If Right(cityStateZip, 1) = "-" Then cityStateZip = Trim(Left(cityStateZip, Len(cityStateZip) - 1))
+            
+            If InStr(Right(cityStateZip, 10), "-") = 6 Then
+                zip4 = Right(cityStateZip, 4)
+                zip5 = Left(Right(cityStateZip, 10), 5)
+                cityState = Trim(Left(cityStateZip, Len(cityStateZip) - 10))
+                State = Right(cityState, 2)
+                city = Trim(Left(cityState, Len(cityState) - 2))
+            Else
+                zip5 = Right(cityStateZip, 5)
+                cityState = Trim(Left(cityStateZip, Len(cityStateZip) - 5))
+                State = Right(cityState, 2)
+                city = Trim(Left(cityState, Len(cityState) - 2))
+            End If
+            
+            If lastRowSet - firstRowSet + 1 > 5 Then
+                'MsgBox "Appears as if we've reached the last account on row " & firstRowSet & ".", vbInformation
+                GoTo endsub
+            End If
+            
+            If Range("B1").Value = "" Then
+                Range("B1").Value = "CORP"
+                Range("C1").Value = "HOUSE"
+                Range("D1").Value = "CUST"
+                Range("E1").Value = "FIRMNAME"
+                Range("F1").Value = "ADDRESS1"
+                Range("G1").Value = "ADDRESS2"
+                Range("H1").Value = "CITY"
+                Range("I1").Value = "STATE"
+                Range("J1").Value = "ZIP5"
+                Range("K1").Value = "ZIP4"
+                Range("L1").Value = "ERROR_CODE"
+                Range("M1").Value = "ERROR_DESCRIPTION"
+            End If
+            
+            insertRow = 2
+            Do While Range("B" & insertRow).Value <> ""
+                insertRow = insertRow + 1
+            Loop
+            
+            Cells(insertRow, 2) = corp
+            Cells(insertRow, 2).NumberFormat = "00000"
+            Cells(insertRow, 3) = Format(HOUSE, "000000")
+            Cells(insertRow, 3).NumberFormat = "000000"
+            Cells(insertRow, 4) = cust
+            Cells(insertRow, 4).NumberFormat = "00"
+            If frmName <> "" Then Cells(insertRow, 5) = frmName
+            Cells(insertRow, 6) = address1
+            Cells(insertRow, 7) = address2
+            Cells(insertRow, 8) = city
+            Cells(insertRow, 9) = State
+            Cells(insertRow, 10) = zip5
+            If zip4 <> "" Then Cells(insertRow, 11) = zip4
+            Cells(insertRow, 12) = errCode
+            Cells(insertRow, 13) = errDesc
+            
+            'Flag to detect any duplicate accounts in one entry
+            corpFound = False
+        End If
+        
+        corp = ""
+        HOUSE = ""
+        cust = ""
+        frmName = ""
+        address1 = ""
+        address2 = ""
+        city = ""
+        State = ""
+        zip5 = ""
+        zip4 = ""
+        errCode = ""
+        errDesc = ""
+    Next i
+    
+endsub:
+    Columns.AutoFit
+    
+    Columns("A:A").EntireColumn.Hidden = True
+    With Range("B1:M1")
+        .HorizontalAlignment = xlCenter
+        .VerticalAlignment = xlBottom
+        .WrapText = False
+        .Orientation = 0
+        .AddIndent = False
+        .IndentLevel = 0
+        .ShrinkToFit = False
+        .ReadingOrder = xlContext
+        .MergeCells = False
+        With .Interior
+            .Pattern = xlSolid
+            .PatternColorIndex = xlAutomatic
+            .ThemeColor = xlThemeColorDark1
+            .TintAndShade = -0.149998474074526
+            .PatternTintAndShade = 0
+        End With
+    End With
+
+    Range("B2").Select
+    ActiveWindow.FreezePanes = True
+End Sub
+
+Sub DSTCASSReportSheetsMerge()
+    Dim rowCountPreShot As Long
+    rowCountPreShot = 0
+    For i = 1 To Sheets.Count
+        rowCountPreShot = rowCountPreShot + Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row - 1
+    Next i
+    
+    For i = Sheets.Count To 1 Step -1
+        If i = 1 Then GoTo rowCountCheck
+        
+        CurentRows = Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row
+        previousRows = Worksheets(i - 1).Range("B" & Rows.Count).End(xlUp).Row
+                
+        Worksheets(i - 1).Range("B" & previousRows + 1 & ":M" & CurentRows + previousRows - 1).Value = Worksheets(i).Range("B2:M" & CurentRows).Value
+        
+        Application.DisplayAlerts = False
+        Worksheets(i).Delete
+        Application.DisplayAlerts = True
+    Next i
+
+rowCountCheck:
+    rowCountPostShot = 0
+    rowCountPostShot = Worksheets(i).Range("B" & Rows.Count).End(xlUp).Row - 1
+    
+    If rowCountPreShot = rowCountPostShot Then
+        MsgBox "Merge Complete. Row count seems intact.", vbInformation
+    Else
+        MsgBox "Something seems off about the row count numbers, please recheck the Macro logic.", vbCritical
+    End If
+End Sub
