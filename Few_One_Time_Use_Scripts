@@ -1,0 +1,982 @@
+Sub FormatAPMS_beta()
+    With Columns("D")
+        .replace What:="am", Replacement:=" AM", LookAt:=xlPart, SearchOrder:=xlByRows, MatchCase:=False, SearchFormat:=False, ReplaceFormat:=False
+        .replace What:="pm", Replacement:=" PM", LookAt:=xlPart, SearchOrder:=xlByRows, MatchCase:=False, SearchFormat:=False, ReplaceFormat:=False
+        .NumberFormat = "[$-409]hh:mm AM/PM;@"
+    End With
+    
+    With Columns("M")
+        .replace What:="am", Replacement:=" AM", LookAt:=xlPart, SearchOrder:=xlByRows, MatchCase:=False, SearchFormat:=False, ReplaceFormat:=False
+        .replace What:="pm", Replacement:=" PM", LookAt:=xlPart, SearchOrder:=xlByRows, MatchCase:=False, SearchFormat:=False, ReplaceFormat:=False
+        .NumberFormat = "[$-409]hh:mm AM/PM;@"
+    End With
+    
+    Columns("L").NumberFormat = "mm/dd/yyyy"
+    Columns("E").NumberFormat = "mm/dd/yyyy"
+    
+    Columns("D").EntireColumn.AutoFit
+    Columns("M").EntireColumn.AutoFit
+    Columns("L").EntireColumn.AutoFit
+    Columns("E").EntireColumn.AutoFit
+End Sub
+Sub DedupKeepDropNotes()
+    Lastrow = 73098
+    
+    'Determine last row based on last addressID
+    'Range("A" & Rows.Count).End(xlUp).Row
+    
+    
+    For i = 2 To Lastrow
+        'looks for the first AddressID in a set
+        If Trim(Range("AJ" & i)) = Trim(Range("AJ" & i + 1)) And Trim(Range("AJ" & i)) <> Trim(Range("AJ" & i - 1)) Then
+            firstID = i
+            
+            'Find the last AddressID in the set
+            For j = firstID To Lastrow
+                If Trim(Range("AJ" & j)) <> Trim(Range("AJ" & j + 1)) Then
+                    lastID = j
+                    keepAcctNo = ""
+                    GoTo jumpOut
+                End If
+            Next j
+jumpOut:
+        Else
+            GoTo skipIteration
+        End If
+        
+        'Find the account for the Keep record
+        For k = firstID To lastID
+            If UCase(Trim(Range("AM" & k))) = "KEEP" Then
+                keepAcctNo = Right("00000" & Trim(Range("B" & k)), 5) & "-" & Right("000000" & Trim(Range("C" & k)), 6) & "-" & Right("00" & Trim(Range("D" & k)), 2)
+            End If
+        Next k
+        
+        If keepAcctNo = "" Then keepAcctNo = "None - No KEEP Account available"
+        
+        'Reiterate the list and past comment on the DROPS
+        For l = firstID To lastID
+            If UCase(Trim(Range("AM" & l))) = "DROP" Then
+                Range("AT" & l) = "Keep Record: " & keepAcctNo
+            End If
+        Next l
+skipIteration:
+    Next i
+End Sub
+Sub GoogleGeocodingAPI_LatLong_BETA()
+    'This uses the Google Geocoding API to attempt to return a valid address
+    Dim c As Long
+    Dim lookupAddress As String
+    Dim API_Key As String
+    Dim XMLGeocodingRequest As String
+    Dim myDom As Object
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    
+    For i = 2 To Range("A" & Rows.Count).End(xlUp).Row
+        If Rows(i).Hidden = True Then GoTo nextRecord
+        
+        lookupAddress = Trim(Cells(i, 3)) & " " & Trim(Cells(i, 5)) & " " & Trim(Cells(i, 6)) & "," & Trim(Cells(i, 7)) & "," & Trim(Cells(i, 8)) & "," & Right("00000" & Trim(Cells(i, 9)), 5)
+        
+        API_Key = "AIzaSyDaEGc37KMzrAzrWA7AnndY9kwCk0TgNmY"
+        
+        XMLGeocodingRequest = "https://maps.googleapis.com/maps/api/geocode/xml?address=" & replace(lookupAddress, " ", "+") & "&key=" & API_Key
+        
+        Stop
+        myDom.async = False
+        myDom.Load (XMLGeocodingRequest)
+        
+        For Each xmlNode In myDom.getElementsByTagName("*")
+            If xmlNode.tagname = "geometry" Then
+                For Each myNode In xmlNode.ChildNodes
+                    If myNode.tagname = "location" Then
+                        For Each myOtherNode In myNode.ChildNodes
+                            If myOtherNode.tagname = "lat" Then Cells(i, 14) = myOtherNode.Text
+                            If myOtherNode.tagname = "lng" Then Cells(i, 15) = myOtherNode.Text
+                        Next myOtherNode
+                    End If
+                Next myNode
+            End If
+        Next xmlNode
+nextRecord:
+    Next i
+End Sub
+
+Sub DoesStringHaveANumber()
+    strData = "sd2sd5jghjh"
+    
+    For iCnt = 1 To Len(strData)
+        If IsNumeric(Mid(strData, iCnt, 1)) Then
+            MsgBox "Found a number in position " & iCnt
+        End If
+    Next iCnt
+End Sub
+Sub MillionPivotData()
+    Dim i, b1, b2, b3, b4, b5, b6, b7, c1, c2, c3, c4, c5, c6, c7, d1, d2, d3, d4, d5, d6, d7, a1, a2, a3, a4, a5, a6, a7, blank, countsA, countsB, null1, null6, null7 As Long
+    Dim reportSheet As String
+    reportSheet = "TEMP"
+      
+    For wrkSheet = 2 To Sheets.Count
+        a1 = 0
+        a2 = 0
+        a3 = 0
+        a4 = 0
+        a5 = 0
+        a6 = 0
+        a7 = 0
+        b1 = 0
+        b2 = 0
+        b3 = 0
+        b4 = 0
+        b5 = 0
+        b6 = 0
+        b7 = 0
+        c1 = 0
+        c2 = 0
+        c3 = 0
+        c4 = 0
+        c5 = 0
+        c6 = 0
+        c7 = 0
+        d1 = 0
+        d2 = 0
+        d3 = 0
+        d4 = 0
+        d5 = 0
+        d6 = 0
+        d7 = 0
+        null1 = 0
+        null6 = 0
+        null7 = 0
+        For i = 2 To Worksheets(wrkSheet).Range("A" & Rows.Count).End(xlUp).Row
+            cycleStat = Trim(Worksheets(wrkSheet).Range("F" & i)) & Trim(Worksheets(wrkSheet).Range("D" & i))
+            
+            Select Case cycleStat
+                Case "B1"
+                    b1 = b1 + 1
+                Case "B2"
+                    b2 = b2 + 1
+                Case "B3"
+                    b3 = b3 + 1
+                Case "B4"
+                    b4 = b4 + 1
+                Case "B5"
+                    b5 = b5 + 1
+                Case "B6"
+                    b6 = b6 + 1
+                Case "B7"
+                    b7 = b7 + 1
+                Case "C1"
+                    c1 = c1 + 1
+                Case "C2"
+                    c2 = c2 + 1
+                Case "C3"
+                    c3 = c3 + 1
+                Case "C4"
+                    c4 = c4 + 1
+                Case "C5"
+                    c5 = c5 + 1
+                Case "C6"
+                    c6 = c6 + 1
+                Case "C7"
+                    c7 = c7 + 1
+                Case "D1"
+                    d1 = d1 + 1
+                Case "D2"
+                    d2 = d2 + 1
+                Case "D3"
+                    d3 = d3 + 1
+                Case "D4"
+                    d4 = d4 + 1
+                Case "D5"
+                    d5 = d5 + 1
+                Case "D6"
+                    d6 = d6 + 1
+                Case "D7"
+                    d7 = d7 + 1
+                Case "A1"
+                    a1 = a1 + 1
+                Case "A2"
+                    a2 = a2 + 1
+                Case "A3"
+                    a3 = a3 + 1
+                Case "A4"
+                    a4 = a4 + 1
+                Case "A5"
+                    a5 = a5 + 1
+                Case "A6"
+                    a6 = a6 + 1
+                Case "A7"
+                    a7 = a7 + 1
+                Case "1"
+                    null1 = null1 + 1
+                Case "6"
+                    null6 = null6 + 1
+                Case "7"
+                    null7 = null7 + 1
+                Case Else
+                    Stop
+                    blank = blank + 1
+            End Select
+        Next i
+        
+        Row = Row + 1
+        Col = 0
+        
+        If Row = 1 Then
+            Worksheets(reportSheet).Cells(Row, Col + 1) = "CORP"
+            Worksheets(reportSheet).Cells(Row, Col + 2) = "CYCLE"
+            Worksheets(reportSheet).Cells(Row, Col + 3) = "STAT"
+            Worksheets(reportSheet).Cells(Row, Col + 4) = "COUNT"
+            Row = Row + 1
+        End If
+        
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 1
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b1
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 2
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b2
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 3
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b3
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 4
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b4
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 5
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b5
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 6
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b6
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "B"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 7
+        Worksheets(reportSheet).Cells(Row, Col + 4) = b7
+        
+        Row = Row + 1
+        
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 1
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c1
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 2
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c2
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 3
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c3
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 4
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c4
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 5
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c5
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 6
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c6
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "C"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 7
+        Worksheets(reportSheet).Cells(Row, Col + 4) = c7
+        
+        Row = Row + 1
+        
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 1
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d1
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 2
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d2
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 3
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d3
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 4
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d4
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 5
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d5
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 6
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d6
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "D"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 7
+        Worksheets(reportSheet).Cells(Row, Col + 4) = d7
+        
+        Row = Row + 1
+        
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 1
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a1
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 2
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a2
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 3
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a3
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 4
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a4
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 5
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a5
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 6
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a6
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "A"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 7
+        Worksheets(reportSheet).Cells(Row, Col + 4) = a7
+        
+        Row = Row + 1
+        
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "NULL"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 1
+        Worksheets(reportSheet).Cells(Row, Col + 4) = null1
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "NULL"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 6
+        Worksheets(reportSheet).Cells(Row, Col + 4) = null6
+        Row = Row + 1
+        Worksheets(reportSheet).Cells(Row, Col + 1) = Worksheets(wrkSheet).Name
+        Worksheets(reportSheet).Cells(Row, Col + 2) = "NULL"
+        Worksheets(reportSheet).Cells(Row, Col + 3) = 7
+        Worksheets(reportSheet).Cells(Row, Col + 4) = null7
+    Next wrkSheet
+        
+    For wrkSheet = 2 To Sheets.Count
+        countsB = countsB + Worksheets(wrkSheet).Range("A" & Rows.Count).End(xlUp).Row - 1
+    Next wrkSheet
+    
+    Debug.Print "Number of combined total rows: " & countsB
+    MsgBox "Task completed!"
+    Stop
+End Sub
+Sub quickinvalidnodes()
+    Col = 9
+    currNode = 10
+    
+    For i = 2 To 122577
+        If Not IsNumeric(Right(Cells(i, currNode), 3)) Then
+            Cells(i, Col) = "INVALID NODE"
+        End If
+        
+        If Not IsNumeric(Left(Cells(i, currNode), 2)) Then
+            If Left(UCase(Cells(i, currNode)), 1) = "X" Then Cells(i, Col) = "INVALID NODE"
+        End If
+        
+        If IsNumeric(Right(Left(Trim(Cells(i, currNode)), 3), 1)) Then Cells(i, Col) = "INVALID NODE"
+    Next i
+End Sub
+
+Sub UpdateDataOnCompleteSheet()
+    'Compare from sheet one to sheet two and move data rows that completely matches corp and house
+    'Worksheets("two").Range("C3:AE3").Copy destination:=Worksheets("one").Range("AL3")
+    
+    If Windows.Application.Workbooks.Count < 1 Then
+        MsgBox "Please open a workbook to begin :)", vbInformation
+        End
+    End If
+    
+    sourceWorksheet = ActiveSheet.Name
+    destinWorksheet = "COMPLETE"
+    
+    If ActiveSheet.Name = destinWorksheet Then
+        MsgBox "Run this macro on a sheet other than the """ & destinWorksheet & """ worksheet.", vbInformation
+        End
+    End If
+    
+    'Row with the Labels
+    labelRow = 2
+    
+    sourceRowCount = Worksheets(sourceWorksheet).Range("A" & Rows.Count).End(xlUp).Row
+    destinRowCount = Worksheets(destinWorksheet).Range("A" & Rows.Count).End(xlUp).Row
+    startRows = 3
+    
+    'ProgressBETA.Show
+    
+    For d = startRows To destinRowCount
+        For s = startRows To sourceRowCount
+            If Worksheets(destinWorksheet).Range("A" & d).Value = Worksheets(sourceWorksheet).Range("A" & s).Value And _
+                Worksheets(destinWorksheet).Range("B" & d).Value = Worksheets(sourceWorksheet).Range("B" & s).Value And _
+                Worksheets(destinWorksheet).Range("C" & d).Value = Worksheets(sourceWorksheet).Range("C" & s).Value _
+                Then
+                    Worksheets(destinWorksheet).Range("D" & d & ":CB" & d).Value = Worksheets(sourceWorksheet).Range("D" & s & ":CB" & s).Value
+            End If
+        Next s
+    Next d
+    
+    MsgBox "Worksheet update complete!", vbInformation
+End Sub
+Sub UpdateDataOnCompleteSheet_2()
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    ' Make Sure source and destination 'HOUSE' column is sorted A->Z.'
+    ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+    sourceWorksheet = ActiveSheet.Name
+    destinWorksheet = "COMPLETE"
+    
+    If ActiveSheet.Name = destinWorksheet Then
+        MsgBox "Run this macro on a sheet other than the """ & destinWorksheet & """ worksheet.", vbInformation
+        End
+    End If
+    
+    'Row with the Labels and first row with data
+    labelRow = 2
+    startRows = 3
+    
+    Set sourceSheet = Worksheets(sourceWorksheet)
+    Set destSheet = Worksheets(destinWorksheet)
+    
+    sourceRowCount = sourceSheet.Range("A" & Rows.Count).End(xlUp).Row
+    destinRowCount = destSheet.Range("A" & Rows.Count).End(xlUp).Row
+    
+    Dim SourceArray() As Variant
+    Dim destArray() As Variant
+    
+    'Source gets the whole data, destination we only want accounts numbers
+    SourceArray = sourceSheet.Range("A3:BK" & sourceRowCount).Value
+    destArray = destSheet.Range("A3:C" & destinRowCount).Value
+    
+    '- 2 to ger rid of looking for the first two label rows
+    For d = 1 To destinRowCount - 2
+        For s = 1 To sourceRowCount - 2
+            If SourceArray(s, 1) = destArray(d, 1) And SourceArray(s, 2) = destArray(d, 2) And SourceArray(s, 3) = destArray(d, 3) Then
+                For dat = 13 To 63
+                    '+ 2 here because you're pasting into the sheet what you're reading from the array
+                    destSheet.Cells(d + 2, dat) = SourceArray(s, dat)
+                Next dat
+                sourceSheet.Cells(s + 2, 65) = "UPDATED ON COMPLETE SHEET"
+            ElseIf SourceArray(s, 2) > destArray(d, 2) Then
+                GoTo skipIteration
+            End If
+        Next s
+skipIteration:
+    Next d
+    
+    MsgBox "Worksheet update complete!", vbInformation
+End Sub
+Sub SorBinCleansed()
+    RowCount = Range("A" & Rows.Count).End(xlUp).Row
+    
+    For i = 2 To RowCount
+        If Cells(i, 2) = Cells(i + 1, 2) Then
+            If Trim(Cells(i, 3)) = "S" And Trim(Cells(i + 1, 3)) = "B" Then
+                Cells(i, 35) = "DELETE"
+                Cells(i + 1, 35) = "KEEP"
+            End If
+            
+            If Trim(Cells(i, 3)) = "B" And Trim(Cells(i + 1, 3)) = "S" Then
+                Cells(i, 35) = "KEEP"
+                Cells(i + 1, 35) = "DELETE"
+            End If
+        End If
+    Next i
+End Sub
+Sub USPSAddressLookupAPI_TEST()
+    'Appends the USPS API received addresses to the CASS Error Generated report for suggestions
+    Dim myDom As Object
+    Dim myXML As String
+    
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    myDom.async = False
+    
+    '<Address ID='#'>   Required Tag/Required Value | Up to 5 address verifications can be included per transaction. For example: <Address ID="0"></Address>
+    '<FirmName>         Required Tag/Optional Value | Maximum characters allowed: 38. For example:  <FirmName>XYZ Corp.</FirmName>
+    '<Address1>         Required Tag/Optional Value | Address Line 1 is used to provide an apartment or suite number, if applicable. Maximum characters allowed: 38. For example: <Address1></Address1>
+    '<Address2>         Required Tag/Required Value | Street address. Maximum characters allowed: 38. For example: <Address2>6406 Ivy </Address2>
+    '<City>             Required Tag/Optional Value | Maximum characters allowed: 15. Either <City> and <State> or <Zip5> are required. For example: <City>Greenbelt</City>
+    '<State>            Required Tag/Optional Value | Maximum characters allowed: 2. Either <City> and <State> or <Zip5> are required.For example: <State>MD</State>
+    '<Urbanization>     Optional Tag/Optional Value | Maximum characters allowed: 28. For Puerto Rico addresses only. For example: <Urbanization></Urbanization>
+    '<Zip5>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 5. Either <City> and <State> or <Zip5> are required.For example:  <Zip5></Zip5>
+    '<Zip4>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 4For example: <Zip4></Zip4>
+    
+    For i = 2 To Range("A" & Rows.Count).End(xlUp).Row
+        myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+            "<AddressValidateRequest USERID=""737NA0000658"">" & _
+            "<IncludeOptionalElements>true</IncludeOptionalElements>" & _
+            "<ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+                "<Address>" & _
+                    "<FirmName>" & "" & "</FirmName>" & _
+                    "<Address1>" & "" & "</Address1>" & _
+                    "<Address2>" & Cells(i, 11) & " " & Cells(i, 12) & "</Address2>" & _
+                    "<City>" & Cells(i, 15) & "</City>" & _
+                    "<State>" & Cells(i, 18) & "</State>" & _
+                    "<Urbanization>" & "" & "</Urbanization>" & _
+                    "<Zip5>" & Cells(i, 20) & "</Zip5>" & _
+                    "<Zip4>" & "" & "</Zip4>" & _
+                "</Address>" & _
+            "</AddressValidateRequest>"
+        
+        myDom.Load (myXML)
+        
+        firstCell = 21
+        caseElseCell = 0
+        
+        For Each xmlNode In myDom.getElementsByTagName("*")
+            For Each myNode In xmlNode.ChildNodes
+                If myNode.NodeType = NODE_TEXT Then
+                    Select Case xmlNode.nodeName
+                        Case "FirmName"
+                            Cells(i, firstCell) = "'" & xmlNode.Text
+                        Case "Address1"
+                            Cells(i, firstCell + 1) = "'" & xmlNode.Text
+                        Case "Address2"
+                            Cells(i, firstCell + 2) = "'" & xmlNode.Text
+                        Case "City"
+                            Cells(i, firstCell + 3) = "'" & xmlNode.Text
+                        Case "State"
+                            Cells(i, firstCell + 4) = "'" & xmlNode.Text
+                        Case "Zip5"
+                            Cells(i, firstCell + 5) = "'" & xmlNode.Text
+                        Case "Zip4"
+                            Cells(i, firstCell + 6) = "'" & xmlNode.Text
+                        Case "DeliveryPoint"
+                            Cells(i, firstCell + 7) = "'" & xmlNode.Text
+                        Case "CarrierRoute"
+                            Cells(i, firstCell + 8) = "'" & xmlNode.Text
+                        Case "Number"
+                            Cells(i, firstCell + 9) = "'" & xmlNode.Text
+                        Case "Source"
+                            Cells(i, firstCell + 10) = "'" & xmlNode.Text
+                        Case "Description"
+                            Cells(i, firstCell + 11) = "'" & xmlNode.Text
+                        Case Else
+                            Cells(i, firstCell + 12 + caseElseCell) = "'" & xmlNode.nodeName & ": " & xmlNode.Text
+                            caseElseCell = caseElseCell + 1
+                    End Select
+                End If
+            Next myNode
+        Next xmlNode
+        
+'        Dim c As Integer
+'        c = 14
+'        For Each xmlNode In myDom.getElementsByTagName("*")
+'            For Each myNode In xmlNode.ChildNodes
+'                If myNode.NodeType = NODE_TEXT Then
+'                    'Debug.Print xmlNode.nodeName & ": " & xmlNode.Text
+'                    Cells(i, c) = xmlNode.nodeName
+'                    c = c + 1
+'                    Cells(i, c) = "'" & xmlNode.Text
+'                    c = c + 1
+'                End If
+'            Next myNode
+'        Next xmlNode
+
+    Next i
+    
+    Cells.EntireColumn.AutoFit
+    
+    Set myDom = Nothing
+    Set xmlNode = Nothing
+    Set myNode = Nothing
+End Sub
+Sub QuickDupFind()
+    'Make sure the data is sorted and  potential duplicates are next to eachother
+    For a = 1 To 43516
+        For b = 1 To 12
+            If Cells(a, b) <> Cells(a + 1, b) Then Exit For
+            If b = 12 Then Cells(a, 13) = "DUP"
+        Next b
+    Next a
+End Sub
+Sub fillinblankswithitemabove()
+    comp = 2
+    For x = 3 To Range("B" & Rows.Count).End(xlUp).Row
+        If Cells(x, 1).Value = "" Then
+            Cells(x, 1).Value = Cells(comp, 1).Value
+            comp = comp + 1
+        Else
+            comp = comp + 1
+        End If
+    Next x
+End Sub
+Sub linebreaks()
+    i = 2
+    Do Until Range("A" & i).Value = ""
+        Rows(i).Insert
+        Range("A" & i).Value = "LINE_BREAK"
+        i = i + 2
+    Loop
+End Sub
+Sub Send_Range()
+   
+   ' Select the range of cells on the active worksheet.
+   ActiveSheet.Range("A1:A30").Select
+   
+   ' Show the envelope on the ActiveWorkbook.
+   ActiveWorkbook.EnvelopeVisible = True
+   
+   ' Set the optional introduction field thats adds
+   ' some header text to the email body. It also sets
+   ' the To and Subject lines. Finally the message
+   ' is sent.
+   With ActiveSheet.MailEnvelope
+      .Introduction = Range("B7").Value
+      .Item.To = "exceptions@cablevision.com"
+      .Item.Subject = "Manual Receipt" & Range("B8").Value
+      .Item.Send
+   End With
+   Set Rng = Range("A1:B30")
+ Rng.PrintOut
+Dim Lastrow As Long
+ Lastrow = Cells(Cells.Rows.Count, "AM").End(xlUp).Row
+ Range("B8:B26").ClearContents
+End Sub
+Sub LoadMultipleFilesIntoWorksheet()
+    Dim fpath As String
+    Dim fname As String
+
+    fpath = "C:\Jerryvan\My Projects\Address Cleanse Project\Download Callback Servlet Details CIS\"
+    fname = Dir(fpath & "*.rpt")
+    fileNum = 1
+    
+    While (Len(fname) > 0)
+        If fileNum > 1 Then Sheets.Add After:=Sheets(Sheets.Count)
+        'INSERT CODE HERE to create a workbook if none is open
+        
+        With ActiveSheet.QueryTables.Add(Connection:="TEXT;" & fpath & fname, Destination:=Range("A1"))
+            .Name = "a" & idx
+            .FieldNames = True
+            .RowNumbers = False
+            .FillAdjacentFormulas = False
+            .PreserveFormatting = True
+            .RefreshOnFileOpen = False
+            .RefreshStyle = xlInsertDeleteCells
+            .SavePassword = False
+            .SaveData = True
+            .AdjustColumnWidth = True
+            .RefreshPeriod = 0
+            .TextFilePromptOnRefresh = False
+            .TextFilePlatform = 437
+            .TextFileStartRow = 1
+            .TextFileParseType = xlDelimited
+            .TextFileTextQualifier = xlTextQualifierDoubleQuote
+            .TextFileConsecutiveDelimiter = False
+            .TextFileTabDelimiter = False
+            .TextFileSemicolonDelimiter = False
+            .TextFileCommaDelimiter = False
+            .TextFileSpaceDelimiter = False
+            '.TextFileOtherDelimiter = "|"
+            .TextFileColumnDataTypes = Array(1, 1, 1)
+            .TextFileTrailingMinusNumbers = True
+            .Refresh BackgroundQuery:=False
+            fname = Dir
+        End With
+        fileNum = fileNum + 1
+    Wend
+End Sub
+Function BooksDate() 'Work in progress
+    Dim wb As Workbook
+    
+    For Each wb In Application.Workbooks
+        If InStr(wb.Name, "IFALIAS") <> 0 Then
+            theDate = Left(Right(wb.Name, 13), 9)
+            MsgBox theDate
+        End If
+    Next wb
+    
+            varDay = Left(theDate, 2)
+            varMonth = Right(Left(theDate, 5), 3)
+            varYear = Right(theDate, 4)
+            
+            Select Case varMonth
+                Case "JAN": varMonth = "01"
+                Case "FEB": varMonth = "02"
+                Case "MAR": varMonth = "03"
+                Case "APR": varMonth = "04"
+                Case "MAY": varMonth = "05"
+                Case "JUN": varMonth = "06"
+                Case "JUL": varMonth = "07"
+                Case "AUG": varMonth = "08"
+                Case "SEP": varMonth = "09"
+                Case "OCT": varMonth = "10"
+                Case "NOV": varMonth = "11"
+                Case "DEC": varMonth = "12"
+            End Select
+            
+            'MsgBox Format(CDate(varMonth & "/" & varDay & "/" & varYear), "mm/dd/yyyy")
+            'MsgBox UCase(Format(CDate(varMonth & "/" & varDay & "/" & varYear), "ddmmmyyyy"))
+            'BooksDate = CStr(Format(CDate(varMonth & "/" & varDay & "/" & varYear), "mm.dd.yy"))
+            'BooksDate = CDate(44)
+            'MsgBox BooksDate
+            'MsgBox UCase(Format(BooksDate, "mm.dd.yyyy"))
+End Function
+Sub fasterCode()
+    Dim DataRange As Variant
+    Dim Irow As Long
+    Dim Icol As Integer
+    Dim MyVar As Double
+    DataRange = Range("A1:C10000").Value 'read all the values at once from the Excel grid, put into an array
+    
+    For Irow = 1 To 10000
+        For Icol = 1 To 3
+            MyVar = DataRange(Irow, Icol)
+            If MyVar > 0 Then
+                MyVar = MyVar * MyVar 'Change the values in the array
+                DataRange(Irow, Icol) = MyVar
+            End If
+        Next Icol
+    Next Irow
+    
+    Range("A1:C10000").Value = DataRange 'writes all the results back to the range at once
+End Sub
+Sub Compare2Sheets()
+    ' hiker95, 07/13/2011
+    ' http://www.mrexcel.com/forum/showthread.php?t=564090
+    Dim w1 As Worksheet, w2 As Worksheet
+    Dim c As Range, LR As Long, FR As Long
+    Application.ScreenUpdating = False
+    
+    Set w1 = Worksheets("Node Health1")
+    Set w2 = Worksheets("Node Health2")
+    
+    LR = w1.Cells(Rows.Count, 1).End(xlUp).Row
+    With w1.Range("C1:C" & LR)
+        .FormulaR1C1 = "=RC[-2]&RC[-1]"
+        .Value = .Value
+    End With
+    
+    LR = w2.Cells(Rows.Count, 1).End(xlUp).Row
+    With w2.Range("C1:C" & LR)
+        .FormulaR1C1 = "=RC[-2]&RC[-1]"
+        .Value = .Value
+    End With
+    
+    For Each c In w2.Range("C1", w2.Range("C" & Rows.Count).End(xlUp))
+        FR = 0
+        On Error Resume Next
+        FR = Application.match(c, w1.Columns(3), 0)
+        On Error GoTo 0
+        If FR = 0 Then
+            c.Offset(, -2).Resize(, 2).Font.Bold = True
+        End If
+    Next c
+    
+    w1.Columns(3).ClearContents
+    w2.Columns(3).ClearContents
+    Application.ScreenUpdating = True
+End Sub
+Sub Timestamp_test()
+    start_time = Now
+    MsgBox start_time
+    End_time = Now
+    MsgBox End_time
+    
+    MsgBox Format(End_time - start_time, "hh:mm:ss")
+End Sub
+
+Sub organizemessageslol()
+    For y = 2 To Range("A" & Rows.Count).End(xlUp).Row
+        If Trim(Cells(y, 2).Value) = "Jerry" Then
+            Cells(y, 4).Value = Cells(y, 3).Value
+            Cells(y, 3).ClearContents
+            
+            Range("D" & y).Select
+            With Selection.Interior
+                .Pattern = xlSolid
+                .PatternColorIndex = xlAutomatic
+                .ThemeColor = xlThemeColorAccent6
+                .TintAndShade = 0.599993896298105
+                .PatternTintAndShade = 0
+            End With
+        End If
+        If Trim(Cells(y, 2).Value) = "Marianne" Then
+            Range("C" & y).Select
+            With Selection.Interior
+                .Pattern = xlSolid
+                .PatternColorIndex = xlAutomatic
+                .ThemeColor = xlThemeColorAccent6
+                .TintAndShade = 0.599993896298105
+                .PatternTintAndShade = 0
+            End With
+        End If
+    Next y
+End Sub
+Public Sub SendXML_Original()
+    Dim gUSPSusername As String
+    gUSPSusername = "737NA0000658"
+    
+    Dim gUSPSservername As String
+    'gUSPSservername = "http://production.shippingapis.com/ShippingAPITest.dll"
+    gUSPSservername = "http://production.shippingapis.com/ShippingAPI.dll"
+    
+    Dim myDom As Object
+    Dim myXML As String
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    myDom.async = False
+    
+    myXML = gUSPSservername & "?API=Verify&XML=" & _
+        "<AddressValidateRequest%20USERID=" & Chr(34) & gUSPSusername & Chr(34) & "><Address>" & _
+        "<Address1></Address1>" & _
+        "<Address2>6406 Ivy Lane</Address2><City>Greenbelt</City><State>MD</State>" & _
+        "<Zip5></Zip5><Zip4></Zip4></Address></AddressValidateRequest>"
+    myDom.Load (myXML)
+    MsgBox myXML
+    MsgBox myDom.XML
+End Sub
+Function GetStandardAddress(Optional addressID As String, Optional firmname As String, Optional address1 As String, Optional address2 As String, Optional city As String, Optional State As String, Optional urban As String, Optional zip5 As String, Optional zip4 As String)
+    Dim myDom As Object
+    Dim myXML As String
+    
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    myDom.async = False
+    
+    '<Address ID='#'>   Required Tag/Required Value | Up to 5 address verifications can be included per transaction. For example: <Address ID="0"></Address>
+    '<FirmName>         Required Tag/Optional Value | Maximum characters allowed: 38. For example:  <FirmName>XYZ Corp.</FirmName>
+    '<Address1>         Required Tag/Optional Value | Address Line 1 is used to provide an apartment or suite number, if applicable. Maximum characters allowed: 38. For example: <Address1></Address1>
+    '<Address2>         Required Tag/Required Value | Street address. Maximum characters allowed: 38. For example: <Address2>6406 Ivy </Address2>
+    '<City>             Required Tag/Optional Value | Maximum characters allowed: 15. Either <City> and <State> or <Zip5> are required. For example: <City>Greenbelt</City>
+    '<State>            Required Tag/Optional Value | Maximum characters allowed: 2. Either <City> and <State> or <Zip5> are required.For example: <State>MD</State>
+    '<Urbanization>     Optional Tag/Optional Value | Maximum characters allowed: 28. For Puerto Rico addresses only. For example: <Urbanization></Urbanization>
+    '<Zip5>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 5. Either <City> and <State> or <Zip5> are required.For example:  <Zip5></Zip5>
+    '<Zip4>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 4For example: <Zip4></Zip4>
+    
+    myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+        "<AddressValidateRequest USERID=""737NA0000658"">" & _
+        "<IncludeOptionalElements>true</IncludeOptionalElements>" & _
+        "<ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+            "<Address>" & _
+                "<FirmName>" & firmname & "</FirmName>" & _
+                "<Address1>" & address1 & "</Address1>" & _
+                "<Address2>" & address2 & "</Address2>" & _
+                "<City>" & city & "</City>" & _
+                "<State>" & State & "</State>" & _
+                "<Urbanization>" & urban & "</Urbanization>" & _
+                "<Zip5>" & zip5 & "</Zip5>" & _
+                "<Zip4>" & zip4 & "</Zip4>" & _
+            "</Address>" & _
+        "</AddressValidateRequest>"
+    
+    myDom.Load (myXML)
+    
+    Set xmlNodeList = myDom.getElementsByTagName("*")
+    
+    For Each xmlNode In myDom.getElementsByTagName("*")
+        For Each myNode In xmlNode.ChildNodes
+            If myNode.NodeType = NODE_TEXT Then
+                Debug.Print xmlNode.nodeName & ": " & xmlNode.Text
+            End If
+        Next myNode
+    Next xmlNode
+
+    Set myDom = Nothing
+    Set xmlNodeList = Nothing
+    Set xmlNode = Nothing
+    Set myNode = Nothing
+End Function
+Sub GetStandardMultipleAddresses()
+    Dim myDom As Object
+    Dim myXML As String
+    
+    Set myDom = CreateObject("MSXML2.DOMDocument")
+    myDom.async = False
+    
+'    Dim addressID As String  '<Address ID='#'>   Required Tag/Required Value | Up to 5 address verifications can be included per transaction. For example: <Address ID="0"></Address>
+'    Dim firmname As String   '<FirmName>         Required Tag/Optional Value | Maximum characters allowed: 38. For example:  <FirmName>XYZ Corp.</FirmName>
+'    Dim address1 As String   '<Address1>         Required Tag/Optional Value | Address Line 1 is used to provide an apartment or suite number, if applicable. Maximum characters allowed: 38. For example: <Address1></Address1>
+'    Dim address2 As String   '<Address2>         Required Tag/Required Value | Street address. Maximum characters allowed: 38. For example: <Address2>6406 Ivy </Address2>
+'    Dim city As String       '<City>             Required Tag/Optional Value | Maximum characters allowed: 15. Either <City> and <State> or <Zip5> are required. For example: <City>Greenbelt</City>
+'    Dim State As String      '<State>            Required Tag/Optional Value | Maximum characters allowed: 2. Either <City> and <State> or <Zip5> are required.For example: <State>MD</State>
+'    Dim urban As String      '<Urbanization>     Optional Tag/Optional Value | Maximum characters allowed: 28. For Puerto Rico addresses only. For example: <Urbanization></Urbanization>
+'    Dim zip5 As String       '<Zip5>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 5. Either <City> and <State> or <Zip5> are required.For example:  <Zip5></Zip5>
+'    Dim zip4 As String       '<Zip4>             Required Tag/Optional Value | Input tag exactly as presented, not all caps.  Maximum characters allowed: 4For example: <Zip4></Zip4>
+
+    myXML = "http://production.shippingapis.com/ShippingAPI.dll?API=Verify&XML=" & _
+        "<AddressValidateRequest USERID=""737NA0000658""><IncludeOptionalElements>true</IncludeOptionalElements><ReturnCarrierRoute>true</ReturnCarrierRoute>" & _
+        "<Address ID='0'><FirmName></FirmName><Address1></Address1><Address2>165 3/4 fillow st</Address2><City>norwalk</City><State>ct</State><Urbanization></Urbanization><Zip5></Zip5><Zip4></Zip4></Address>" & _
+        "</AddressValidateRequest>"
+    
+    myDom.Load (myXML)
+    
+    Set xmlNodeList = myDom.getElementsByTagName("*")
+    
+    For Each xmlNode In xmlNodeList
+        For Each myNode In xmlNode.ChildNodes
+            If myNode.NodeType = NODE_TEXT Then
+                Debug.Print xmlNode.nodeName & ": " & xmlNode.Text
+            End If
+        Next myNode
+    Next xmlNode
+    
+    Set myDom = Nothing
+    Set xmlNodeList = Nothing
+    Set xmlNode = Nothing
+    Set myNode = Nothing
+End Sub
+
+'**********************************************************************************************************************
+'****** END OF CODE. Saved Snippets from here on.
+'Call IE.document.parentWindow.execScript("closeMe()", "JavaScript")
+'ie.Document.frames.item(0).document.frames.length
+'IE.Document.frames.Item(0).Document.frames.item(1).Document.frames.item(2).name = regConfigBottomLeftTreeBackground
+
+'    Dim inputs As MSHTML.IHTMLElementCollection
+'    Dim iFrames As MSHTML.IHTMLElementCollection
+'    Dim iFrame As MSHTML.HTMLFrameElement
+'
+'    'Get top_window frame and navigate to it then
+'    Set doc = IE.Document
+'    Set iFrames = doc.getElementsByName("top_window")
+'
+'    If Not iFrames Is Nothing Then
+'        Set iFrame = iFrames(0)
+'        IE.Navigate URL & iFrame.src
+'
+'        While IE.Busy Or IE.ReadyState <> READYSTATE_COMPLETE: DoEvents: Wend
+'
+'        Set inputs = doc.getElementsByName("Nachnamevalue")
+'        If Not inputs Is Nothing Then
+'            inputs(0).Value = "Test123"
+'        End If
+'    End If
+
+'MsgBox "AMC XML Load completed in: " & Format(Now - start_time, "hh:mm:ss")
