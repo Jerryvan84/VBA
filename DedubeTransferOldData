@@ -1,0 +1,69 @@
+Sub DedubeTransferOldData()
+    'http://www.rondebruin.nl/ado.htm
+    Dim szConnect As String
+    Dim szSQL As String
+    
+    'Late-bind the ADODB objects we need ;)
+    Set rsCon = CreateObject("ADODB.Connection")
+    Set rsData = CreateObject("ADODB.Recordset")
+    
+    szConnect = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\Temp\temp_test\workbook_b.xlsx;Extended Properties=""Excel 12.0 Xml;HDR=Yes"""
+    rsCon.Open szConnect
+    
+    szSQL = "SELECT * FROM [Sheet1$];"
+    rsData.Open szSQL, rsCon, 0, 1, 1
+    
+    Set rs = rsCon.OpenSchema(20)  '20 =adSchemaTables
+    
+    While Not rs.EOF
+        'GetSchema = GetSchema & IIf(Trim(GetSchema) = "", "", ",") & rs("TABLE_NAME")
+        Debug.Print rs("TABLE_NAME")
+        rs.movenext
+    Wend
+    
+    rs.Close
+    
+    'Check to make sure we received data and copy the data
+    If rsData.EOF Then
+        MsgBox "Workbook has reached EOF. Is there any data in this workbook?", vbExclamation
+        Exit Sub
+    End If
+    
+    'Headers we need present on the loaded workbook
+    Dim neededHeaders As Variant
+    neededHeaders = Array("CORP_HOUSE_CUST", "COMMENTS", "DATE", "ANALYST")
+    
+    'Let's search the headers in the loaded workbook.
+    For Each Header In neededHeaders
+        For Each field In rsData.Fields
+            If Header = field.Name Then
+                Exit For
+            ElseIf field.Name = rsData.Fields(rsData.Fields.Count - 1).Name Then
+                'There's one header missing from the loaded file and we've reached the end of the search...
+                MsgBox "Unable to find the Header """ & Header & """ in the loaded workbook. Make sure the appropriate headers are available on the workbook you are loading.", vbExclamation
+                Exit Sub
+            End If
+        Next field
+    Next Header
+    
+    'Bring over COMMENTS, DATE, & ANALYST from old file
+    
+    'rsData.fields("CORP") & rsData.fields("HOUSE") & rsData.fields("CUST")
+    
+    'Dim varArr As Variant
+    'Dump the data into my variant!
+    'varArr = rsData.GetRows
+    'Not necessary to dump to an array... you can navigate fields itself and copy over the matched results... but no headers...
+    'Nevermind... got it: rsData.Fields(3).Name is [CORP]
+    
+    'Clean up our Recordset object.
+    rsData.Close
+    Set rsData = Nothing
+    rsCon.Close
+    Set rsCon = Nothing
+    
+    'Erase our array
+    'Erase varArr
+    
+    'Next steps are to sort the current worksheet by CORP_HOUSE_CUST and start entering all data from varArr()
+End Sub
