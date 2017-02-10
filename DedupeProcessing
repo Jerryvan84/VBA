@@ -1,0 +1,470 @@
+
+'DedupeMain() is the starting point of the program
+Sub DedupdeFormShow()
+    DedupeForm.Show
+End Sub
+
+Sub DedupeSheetCompatibility()
+    'Check to make sure there's at least 1 workbook open
+    If Application.Workbooks.Count < 1 Then MsgBox "Please run this Macro with an open Residential Dedupe worksheet.", vbExclamation: End
+    
+    'Let's look for the array of labels at the first row of the sheet where they should be
+    lastCol = Cells(1, Columns.Count).End(xlToLeft).Column
+    If lastCol <= 1 Then
+        MsgBox "There seems to be one or no column labels on the first row. Please open a compatible Dedup worksheet with this Macro in order to continue,", vbExclamation
+        Exit Sub
+    End If
+    
+    'Define the required labels in our worksheet
+    Dim labelArray As Variant
+    labelArray = Array("H_STATUS", "CORP", "HOUSE", "CUST", "FNAME", "INIT", "LNAME", "ADDRSTRNUM", "ADDR_FRACT", "S_DIR", "S_STNAME", "S_POSTDIR", "S_UNIT", "S_UNITNUM", "S_CITY", "S_STATE", "S_ZIP", "C_STNUM", "C_FRACT", "C_PREDIR", "C_STRNAME", "C_SUFFIX", "C_POSTDIR", "C_UNIT", "C_UNITNUM", "C_CITY", "C_STATE", "C_ZIPCODE5", "C_ZIPCODE4", "DPIDNM", "DSFTHRWB", "C_FLAG", "RECTYPE", "CREATEDATE", "ADD_IND", "ADDRID", "DROPREASON", "LAC", "KEEPDROP", "DISCO_DATE", "info", "hfstatus")
+    
+    'This helps with the success of the .Find function used later
+    For i = 1 To lastCol
+        Cells(1, i) = Trim(Cells(1, i))
+    Next i
+    
+    'Make sure all labels are present
+    For Each lbl In labelArray
+        If Range(Cells(1, 1), Cells(1, lastCol)).Find(lbl, lookAt:=xlWhole) Is Nothing Then
+            MsgBox "The label """ & lbl & """ was not found. Make sure that label is present and re-try. Be aware that any spaces before of after the label name may also cause a problem.", vbExclamation
+            End
+        End If
+    Next lbl
+    
+    'Get rid of the no longer needed array
+    Erase labelArray
+    
+    'If not present, we are going to add CORP_HOUSE_CUST along with ADDRESS_MISMATCH, UNIT_MISMATCH, COMMENTS, NOTES, DATE, ANALYST
+    'If not present, add CORP_HOUSE_CUST to the first column
+    If Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole) Is Nothing Then
+        Columns(1).Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+        Cells(1, 1) = "CORP_HOUSE_CUST"
+        lastCol = lastCol + 1
+    End If
+    
+    With Range(Cells(1, 1), Cells(1, lastCol))
+        'Collect two of our column locations
+        chcCol = .Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column
+        houseCol = .Find("HOUSE", lookAt:=xlWhole).Column
+        
+        If (Cells(Rows.Count, chcCol).End(xlUp).Row <> Cells(Rows.Count, houseCol).End(xlUp).Row) Then
+            If MsgBox("Would you like to fill in (or re-fill in) the ""CORP_HOUSE_CUST"" column now?", vbYesNo + vbQuestion) = vbYes Then
+                'Collect the other two of our column locations
+                corpCol = .Find("CORP", lookAt:=xlWhole).Column
+                custCol = .Find("CUST", lookAt:=xlWhole).Column
+                
+                'Iterate through all the rows that have "HOUSE" and fill in CORP_HOUSE_CUST
+                For i = 2 To Cells(Rows.Count, houseCol).End(xlUp).Row
+                    Cells(i, chcCol) = Trim(Cells(i, corpCol)) & Trim(Cells(i, houseCol)) & Trim(Cells(i, custCol))
+                Next i
+            End If
+        End If
+        
+        'Label our last needed 6 columns. If not present, then add the labels accordingly.
+        If .Find("ADDRESS_MISMATCH", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 1) = "ADDRESS_MISMATCH"
+        If .Find("UNIT_MISMATCH", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 2) = "UNIT_MISMATCH"
+        If .Find("COMMENTS", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 3) = "COMMENTS"
+        If .Find("NOTES", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 4) = "NOTES"
+        If .Find("DATE", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 5) = "DATE"
+        If .Find("ANALYST", lookAt:=xlWhole) Is Nothing Then Cells(1, lastCol + 6) = "ANALYST"
+    End With
+    
+    'Check if there are any list Objects
+    If ActiveSheet.ListObjects.Count >= 1 Then
+        'Convert the table to range
+        If InStr(UCase(ActiveSheet.ListObjects(1).Name), "TABLE") > 0 Then Worksheets(1).ListObjects(1).Unlist
+    End If
+    
+    Columns.AutoFit
+End Sub
+
+Sub DedupeAddressUnitComparison()
+    'All looks good so we'll begin our code to get the job done
+    Dim addressCount As Long
+    Dim unitCount As Long
+    Dim rowCnt As Long
+    
+    With Rows(1)
+        rowCnt = Cells(Rows.Count, .Find("HOUSE", lookAt:=xlWhole).Column).End(xlUp).Row
+        
+        CORP_HOUSE_CUST = .Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column
+        ADDRSTRNUM = .Find("ADDRSTRNUM", lookAt:=xlWhole).Column
+        ADDR_FRACT = .Find("ADDR_FRACT", lookAt:=xlWhole).Column
+        C_STNUM = .Find("C_STNUM", lookAt:=xlWhole).Column
+        S_STNAME = .Find("S_STNAME", lookAt:=xlWhole).Column
+        C_STRNAME = .Find("C_STRNAME", lookAt:=xlWhole).Column
+        C_SUFFIX = .Find("C_SUFFIX", lookAt:=xlWhole).Column
+        S_UNIT = .Find("S_UNIT", lookAt:=xlWhole).Column
+        S_UNITNUM = .Find("S_UNITNUM", lookAt:=xlWhole).Column
+        ADDR_FRACT = .Find("ADDR_FRACT", lookAt:=xlWhole).Column
+        C_UNIT = .Find("C_UNIT", lookAt:=xlWhole).Column
+        C_UNITNUM = .Find("C_UNITNUM", lookAt:=xlWhole).Column
+        COMMENTS_ = .Find("COMMENTS", lookAt:=xlWhole).Column
+        Address_Mismatch = .Find("ADDRESS_MISMATCH", lookAt:=xlWhole).Column
+        S_CITY = .Find("S_CITY", lookAt:=xlWhole).Column
+        C_CITY = .Find("C_CITY", lookAt:=xlWhole).Column
+        UNIT_MISMATCH = .Find("UNIT_MISMATCH", lookAt:=xlWhole).Column
+    End With
+    
+    'We set our counter to see how many rows we're actually updating
+    addressCount = 0
+    unitCount = 0
+    
+    'Main loop to compare address and unit mismatches
+    For i = 2 To rowCnt
+        'Address Mismatch
+        stnum1 = CleanDedupeString(Cells(i, ADDRSTRNUM) & Cells(i, ADDR_FRACT))
+        stnum2 = CleanDedupeString(Cells(i, C_STNUM))
+        
+        stname1 = CleanDedupeString(Cells(i, S_STNAME))
+        stname2 = CleanDedupeString(Cells(i, C_STRNAME) & Cells(i, C_SUFFIX))
+        
+        'Unit Mismatch
+        sunits = CleanDedupeString(Cells(i, S_UNIT) & Cells(i, S_UNITNUM) & Cells(i, ADDR_FRACT))
+        cunits = CleanDedupeString(Cells(i, C_UNIT) & Cells(i, C_UNITNUM))
+        
+        If Not (Cells(i, COMMENTS_).Text = "#N/A" Or IsError(Cells(i, COMMENTS_))) Then
+            'If ADDRSTRNUM & ADDR_FRACT = C_STNUM AND IF S_STNAME = C_STRNAME & C_SUFFIX AND IF S_CITY = C_CITY
+            If (stnum1 = stnum2) And (stname1 = stname2) And (Trim(Cells(i, S_CITY)) = Trim(Cells(i, C_CITY))) Then
+                Cells(i, COMMENTS_) = "Macro: Cleansed address is ok"
+                Cells(i, Address_Mismatch) = "MATCH"
+                addressCount = addressCount + 1
+            End If
+            
+            'IF S_UNIT & S_UNITNUM & ADDR_FRACT = C_UNIT & C_UNITNUM
+            If sunits = cunits Then
+                Cells(i, UNIT_MISMATCH) = "MATCH"
+                If Cells(i, COMMENTS_) = "Macro: Cleansed address is ok" Then Cells(i, COMMENTS_) = "Macro: Cleansed address and unit is ok"
+                unitCount = unitCount + 1
+            End If
+        End If
+        
+        'Update the status bar
+        Application.StatusBar = "Processing... " & Format(i / rowCnt, "0%")
+        
+        'Keep the macro from hanging
+        DoEvents
+    Next i
+    
+    MsgBox "Matched " & addressCount & " addresses including " & unitCount & " units.", vbInformation
+    Application.StatusBar = ""
+End Sub
+
+Sub DedupKeepDropNotes()
+    'All looks good so we'll begin our code to get the job done
+    Dim lastRow As Long
+    
+    With Rows(1)
+        'We set our counter to see how many rows we're actually updating
+        lastRow = Cells(Rows.Count, .Find("HOUSE", lookAt:=xlWhole).Column).End(xlUp).Row
+        lastCol = Cells(1, Columns.Count).End(xlToLeft).Column
+        
+        'Set cell variables
+        CORP = .Find("CORP", lookAt:=xlWhole).Column
+        HOUSE = .Find("HOUSE", lookAt:=xlWhole).Column
+        CUST = .Find("CUST", lookAt:=xlWhole).Column
+        ADDRID = .Find("ADDRID", lookAt:=xlWhole).Column
+        KEEPDROP = .Find("KEEPDROP", lookAt:=xlWhole).Column
+        NOTES_ = .Find("NOTES", lookAt:=xlWhole).Column
+    End With
+    
+    'Sort the ADDRID column from A -> Z or low -> high
+    With ActiveSheet.Sort
+        .SortFields.Clear
+        .SortFields.Add Key:=Range(Cells(2, ADDRID).address), SortOn:=xlSortOnValues, Order:=xlAscending, DataOption:=xlSortNormal
+        .SetRange Range(Cells(1, 1), Cells(lastRow, lastCol))
+        .Header = xlYes
+        .MatchCase = False
+        .Orientation = xlTopToBottom
+        .SortMethod = xlPinYin
+        .Apply
+    End With
+    
+    For i = 2 To lastRow
+        'Looks for the first AddressID in a set
+        If Trim(Cells(i, ADDRID)) = Trim(Cells(i + 1, ADDRID)) And Trim(Cells(i, ADDRID)) <> Trim(Cells(i - 1, ADDRID)) Then
+            firstID = i
+            
+            'Find the last AddressID in the set
+            For j = firstID To lastRow
+                If Trim(Cells(j, ADDRID)) <> Trim(Cells(j + 1, ADDRID)) Then
+                    lastID = j
+                    keepAcctNo = ""
+                    GoTo jumpOut
+                End If
+            Next j
+jumpOut:
+        Else
+            GoTo skipIteration
+        End If
+        
+        'Find the account for the Keep record
+        For k = firstID To lastID
+            If UCase(Trim(Cells(k, KEEPDROP))) = "KEEP" Then
+                keepAcctNo = Right("00000" & Trim(Cells(k, CORP)), 5) & "-" & Right("000000" & Trim(Cells(k, HOUSE)), 6) & "-" & Right("00" & Trim(Cells(k, CUST)), 2)
+            End If
+        Next k
+        
+        If keepAcctNo = "" Then keepAcctNo = "None - No KEEP Account available"
+        
+        'Reiterate the list and past comment on the DROPS
+        For l = firstID To lastID
+            If UCase(Trim(Cells(l, KEEPDROP))) = "DROP" Then
+                Cells(l, NOTES_) = "Keep Record: " & keepAcctNo
+            End If
+        Next l
+        
+skipIteration:
+    'Update status bar
+    Application.StatusBar = "Processing... " & Format(i / lastRow, "0%")
+    
+    'Free resource to prevent hanging
+    DoEvents
+    
+    Next i
+    
+    Application.StatusBar = ""
+    
+    'Make it neat ;)
+    Cells.EntireColumn.AutoFit
+End Sub
+
+Sub DedupeTransferOldData()
+    'http://www.rondebruin.nl/ado.htm
+    start_time = Now()
+    
+    'Get a path for the workbook with old data first
+    Dim oldWorkbook As String
+    oldWorkbook = UseFileDialogOpen
+    If oldWorkbook = "" Then Exit Sub
+    
+    
+    Dim szConnect As String
+    Dim szSQL As String
+    
+    'Late-bind the ADODB objects we need ;)
+    Set rsCon = CreateObject("ADODB.Connection")
+    Set rsData = CreateObject("ADODB.Recordset")
+    
+    'szConnect = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=C:\Temp\temp_test\workbook_b.xlsx;Extended Properties=""Excel 12.0 Xml;HDR=Yes"""
+    szConnect = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" & oldWorkbook & ";Extended Properties=""Excel 12.0 Xml;HDR=No"""
+    
+    'Test the connection to the workbook
+    On Error Resume Next
+    rsCon.Open szConnect
+    
+    'If there's an error, end and close everything
+    If Err.Number <> 0 Then
+        MsgBox "Error: " & Err.Description & vbCrLf & vbCrLf & "Something happened while attempting to load the selected file. Please make sure it's a standard Excel file.", vbCritical
+        
+        rsCon.Close
+        rsCon = Nothing
+        rsData = Nothing
+        Exit Sub
+    End If
+    'On no error, disable "resume next" and continue as normal ;)
+    On Error GoTo 0
+    
+    Set rs = rsCon.OpenSchema(20)  '20 =adSchemaTables
+    
+    Do While Not rs.EOF
+        'GetSchema = GetSchema & IIf(Trim(GetSchema) = "", "", ",") & rs("TABLE_NAME")
+        Debug.Print rs("TABLE_NAME")
+        If UCase(Trim(rs("TABLE_NAME"))) = "DEDUPE$" Then Exit Do
+        rs.MoveNext
+            If rs.EOF Then
+                MsgBox "The worksheet doesn't seems to have a tab labeled Dedupe (case insensitive). Please check the tabs on the selected worksheet and try again." & vbCrLf & vbCrLf & "(Tip: check for spaces in the tab name too.)", vbExclamation
+                
+                rs.Close
+                Set rsData = Nothing
+                rsCon.Close
+                Set rsCon = Nothing
+                Exit Sub
+            End If
+    Loop
+    
+    rs.Close
+    
+    szSQL = "SELECT * FROM [Dedupe$];"
+    rsData.Open szSQL, rsCon, 0, 1, 1
+    
+    'Check to make sure we received data and copy the data
+    If rsData.EOF Then
+        MsgBox "Workbook has reached EOF. Is there any data in this workbook?", vbExclamation
+        Exit Sub
+    End If
+    
+    'Headers we need present on the memory loaded workbook
+    Dim neededHeaders As Variant
+    neededHeaders = Array("CORP_HOUSE_CUST", "COMMENTS", "DATE", "ANALYST")
+    
+    
+    'Let's search the headers in the loaded workbook. The headers on the worksheet would have been checked by the compatibility procedure.
+'    For Each Header In neededHeaders
+'        For Each field In rsData.Fields
+'            If UCase(Trim(Header)) = UCase(Trim(field.Name)) Then
+'                Exit For
+'            ElseIf UCase(Trim(field.Name)) = UCase(Trim(rsData.Fields(rsData.Fields.Count - 1).Name)) Then
+'                'There's one header missing from the loaded file and we've reached the end of the search...
+'                MsgBox "Unable to find the Header """ & Header & """ in the loaded workbook. Make sure the appropriate headers are available on the workbook you are loading.", vbExclamation
+'                Stop
+'            End If
+'        Next field
+'    Next Header
+
+    lastRow = Cells(Rows.Count, Rows(1).Find("HOUSE", lookAt:=xlWhole).Column).End(xlUp).Row
+    
+    'At this point, Headers on the loaded workbook are 100% there. Bring over COMMENTS, DATE, & ANALYST from old file now
+    'This single statement will return the row the found item is in'
+    
+'    While Not rsData.EOF Or lastRow = 0
+'        searchVal = Trim(rsData.Fields("CORP")) & Trim(rsData.Fields("HOUSE")) & Trim(rsData.Fields("CUST"))
+'        If Not Columns(Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column).Find(searchVal, lookAt:=xlWhole) Is Nothing Then
+'            With Columns(Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column)
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("COMMENTS", lookAt:=xlWhole).Column) = rsData.Fields("COMMENTS")
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("DATE", lookAt:=xlWhole).Column) = rsData.Fields("DATE")
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("ANALYST", lookAt:=xlWhole).Column) = rsData.Fields("ANALYST")
+'            End With
+'        End If
+'
+'        lastRow = lastRow - 1
+'        Application.StatusBar = "Records to go: " & lastRow
+'        rsData.MoveNext
+'    Wend
+    
+'    rsData.Fields ("CORP") & rsData.Fields("HOUSE") & rsData.Fields("CUST")
+    Dim varArr As Variant
+'    'Dump the data into my variant!
+    varArr = rsData.GetRows
+'    'Not necessary to dump to an array... you can navigate fields itself and copy over the matched results... but no headers...
+'    'Nevermind... got it: rsData.Fields(3).Name is [CORP]
+    
+    'Clean up our Recordset object.
+    rsData.Close
+    Set rsData = Nothing
+    rsCon.Close
+    Set rsCon = Nothing
+    
+'    For i = 0 To UBound(varArr)
+'        Debug.Print varArr(i, 0)
+'    Next i
+    
+    'Let's search the headers in the loaded workbook array. The headers on the worksheet would have been checked by the compatibility procedure.
+    For Each Header In neededHeaders
+        For i = 0 To UBound(varArr)
+            If UCase(Trim(Header)) = UCase(Trim(varArr(i, 0))) Then
+                'Designate our values in the array
+                Select Case UCase(Trim(varArr(i, 0)))
+                    Case neededHeaders(0): colCHC_ = i  'CORP_HOUSE_CUST
+                    Case neededHeaders(1): colComm = i  'COMMENTS
+                    Case neededHeaders(2): colDate = i  'DATE
+                    Case neededHeaders(3): colAnal = i  'ANALYST
+                End Select
+                Exit For
+            ElseIf UCase(Trim(varArr(i, 0))) = UCase(Trim(varArr(UBound(varArr), 0))) Then
+                'There's one header missing from the loaded file and we've reached the end of the search...
+                MsgBox "Unable to find the Header """ & Header & """ in the loaded workbook. Make sure the appropriate headers are available on the workbook you are loading.", vbExclamation
+                Stop
+            End If
+        Next i
+    Next Header
+    
+    'Set our working variables (current worksheet column locations)
+    CORP_HOUSE_CUST = Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column
+    COMMENTS_ = Rows(1).Find("COMMENTS", lookAt:=xlWhole).Column
+    DATE_ = Rows(1).Find("DATE", lookAt:=xlWhole).Column
+    ANALYST = Rows(1).Find("ANALYST", lookAt:=xlWhole).Column
+    
+    'Let's do a quick check to see if there's any sample data in our variant CORP_HOUSE_CUST column
+    fails = 0
+    For i = 1 To 100
+        If IsNull(varArr(colCHC_, i)) Or varArr(colCHC_, i) = "" Then
+            fails = fails + 1
+        End If
+    Next i
+    
+    If fails = 100 And MsgBox("All the data in the CORP_HOUSE_CUST column in the loaded workbook seems to be either 'Null' or just blank. You may want to review the worksheet you are attempting to copy old data from." & vbCrLf & vbCrLf & "Would you want to continue processing anyway?", vbExclamation + vbYesNo) = vbNo Then
+        Erase varArr
+        Exit Sub
+    ElseIf MsgBox("This macro can take an average of around 15 minutes. Refer to the lower left StatusBar for progress update. You can navigate away to another program in the computer but do not touch anything in Excel until you see the completion prompt." & vbCrLf & vbCrLf & "Would you like to continue?", vbInformation + vbYesNo) = vbNo Then
+        Erase varArr
+        Exit Sub
+    End If
+    
+    'And it all comes down to this... "meat and potatoes"
+    'Start from row 2 (0+1) and begin searching CORP_HOUSE_CUST)
+    Application.ScreenUpdating = False
+    lastArrayRow = UBound(varArr, 2)
+    For i = 1 To UBound(varArr, 2)
+        'searchVal = Trim(varArr(colCorp, i)) & Trim(varArr(colHous, i)) & Trim(varArr(colCust, i))
+        
+        On Error GoTo jump:
+        foundRow = Columns(CORP_HOUSE_CUST).Find(Trim(varArr(colCHC_, i)), lookAt:=xlWhole).Row
+        
+        Cells(foundRow, COMMENTS_) = varArr(colComm, i)
+        Cells(foundRow, DATE_) = varArr(colDate, i)
+        Cells(foundRow, ANALYST) = varArr(colAnal, i)
+        
+        Application.StatusBar = "Processing... " & Format(i / lastArrayRow, "0%")
+        DoEvents
+jump:
+    Next i
+    Application.ScreenUpdating = True
+    Application.StatusBar = ""
+    
+'    While Not rsData.EOF Or lastRow = 0
+'        searchVal = Trim(rsData.Fields("CORP")) & Trim(rsData.Fields("HOUSE")) & Trim(rsData.Fields("CUST"))
+'        If Not Columns(Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column).Find(searchVal, lookAt:=xlWhole) Is Nothing Then
+'            With Columns(Rows(1).Find("CORP_HOUSE_CUST", lookAt:=xlWhole).Column)
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("COMMENTS", lookAt:=xlWhole).Column) = rsData.Fields("COMMENTS")
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("DATE", lookAt:=xlWhole).Column) = rsData.Fields("DATE")
+'                Cells(.Find(searchVal, lookAt:=xlWhole).Row, Rows(1).Find("ANALYST", lookAt:=xlWhole).Column) = rsData.Fields("ANALYST")
+'            End With
+'        End If
+'
+'        lastRow = lastRow - 1
+'        Application.StatusBar = "Records to go: " & lastRow
+'        rsData.MoveNext
+'    Wend
+    
+    'Erase our array
+    Erase varArr
+    
+    'Next steps are to sort the current worksheet by CORP_HOUSE_CUST and start entering all data from varArr()
+    
+    End_time = Now()
+    
+    MsgBox "The data transfer has completed!" & vbCrLf & vbCrLf & "Time taken: " & Format(End_time - start_time, "hh:mm:ss")
+End Sub
+Function UseFileDialogOpen()
+    Dim lngCount As Long
+    
+    'Open the file dialog
+    With Application.FileDialog(msoFileDialogOpen)
+        .AllowMultiSelect = False
+        .Filters.Clear
+        .Filters.Add "All Excel Files", "*.xls*"
+        .Show
+        
+        If .SelectedItems.Count > 0 Then
+            UseFileDialogOpen = .SelectedItems(1)
+        Else
+            UseFileDialogOpen = ""
+        End If
+    End With
+End Function
+Function CleanDedupeString(str As String)
+    Dim chars As Variant
+    chars = Array(" ", "`", "~", "!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "_", "-", "+", "=", "|", "\", "{", "}", "[", "]", ":", """", ";", "'", "<", ">", "?", ",", ".", "/")
+    
+    For Each unwantedChar In chars
+        'Debug.Print unwantedChar
+        Do While InStr(str, unwantedChar) > 0
+            str = Left(str, InStr(str, unwantedChar) - 1) & Right(str, Len(str) - InStr(str, unwantedChar))
+        Loop
+    Next unwantedChar
+    Erase chars
+    
+    CleanDedupeString = Trim(str)
+End Function
